@@ -8,6 +8,7 @@
 | 1 | 2026-05-18 16:45 | yuze liang | Initial commit: Django backend + Vue3 frontend with JWT auth | `871fdd3` |
 | 2 | 2026-05-18 17:10 | yuze liang | 集成 Tailwind CSS + daisyUI，实现导航栏 | `a12bd6c` |
 | 3 | 2026-05-18 17:15 | yuze liang | 小红书风格首页布局 + 文档整理 | `ae09628` |
+| 4 | 2026-05-18 17:30 | yuze liang | 更新项目文档（README + 架构文档 + AI提示词文档） | _待填入_ |
 
 ### #1 — 2026-05-18 16:45
 **Initial commit: Django backend + Vue3 frontend with JWT auth**
@@ -59,3 +60,12 @@
 - 文档整理：所有 `.md` 参考文档移入 `项目文档/` 文件夹
   - 新增 `AI提示词文档.md`
   - README.md 更新项目结构
+
+### #4 — 2026-05-18 17:30
+**更新项目文档（README + 架构文档 + AI提示词文档）**
+
+包含内容：
+- README.md：全面重写，新增技术栈版本表、已实现功能清单、API 接口表、参考文档索引
+- 项目架构文档.md：更新目录树（反映真实文件状态），新增 Tailwind/daisyUI 配置章节、组件架构图、布局参数表、设计规范表、Mock 数据说明、Git 仓库信息
+- AI提示词文档.md：从 1 条提示词扩展到 8 条（覆盖项目全流程），新增 3 个提示词模板（前端/后端/文档更新），新增使用记录汇总表
+- Git提交记录.md：新增第 4 次提交记录
