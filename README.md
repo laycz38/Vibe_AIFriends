@@ -36,7 +36,11 @@ npm run dev
 ```
 AIFriends/
 ├── backend/          # Django 后端
-├── frontend/         # Vue 3 前端
-├── 项目架构文档.md    # 详细的项目文档
-└── 学习笔记.md        # JWT 认证学习笔记
+├── frontend/         # Vue 3 前端（小红书风格首页）
+├── 项目文档/          # 📁 项目参考文档
+│   ├── 项目架构文档.md
+│   ├── 学习笔记.md
+│   ├── AI提示词文档.md
+│   └── Git提交记录.md
+└── README.md
 ```
