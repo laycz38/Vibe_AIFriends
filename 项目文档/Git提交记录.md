@@ -9,6 +9,7 @@
 | 2 | 2026-05-18 17:10 | yuze liang | 集成 Tailwind CSS + daisyUI，实现导航栏 | `a12bd6c` |
 | 3 | 2026-05-18 17:15 | yuze liang | 小红书风格首页布局 + 文档整理 | `ae09628` |
 | 4 | 2026-05-18 17:30 | yuze liang | 更新项目文档（README + 架构文档 + AI提示词文档） | `12671a7` |
+| 5 | 2026-05-18 17:45 | yuze liang | 前端布局转向 AI 面经风格（Sidebar+Header+NoteCard+mock数据） | _待填入_ |
 
 ### #1 — 2026-05-18 16:45
 **Initial commit: Django backend + Vue3 frontend with JWT auth**
@@ -69,3 +70,12 @@
 - 项目架构文档.md：更新目录树（反映真实文件状态），新增 Tailwind/daisyUI 配置章节、组件架构图、布局参数表、设计规范表、Mock 数据说明、Git 仓库信息
 - AI提示词文档.md：从 1 条提示词扩展到 8 条（覆盖项目全流程），新增 3 个提示词模板（前端/后端/文档更新），新增使用记录汇总表
 - Git提交记录.md：新增第 4 次提交记录
+
+### #5 — 2026-05-18 17:45
+**前端布局转向 AI 面经风格（Sidebar+Header+NoteCard+mock数据）**
+
+包含内容：
+- Sidebar.vue：品牌名改为"AI 面经"，Logo 改为蓝紫渐变"AI"，菜单改为 发现/AI问答/发布面经/我的收藏，激活态 indigo 色调
+- Header.vue：搜索 placeholder 改为"搜索面经、公司、岗位..."，分类 Tab 改为 全部/字节跳动/腾讯/阿里/美团/百度/华为/快手/后端/算法/AI，右上角改为 上传面经/AI模拟面试
+- NoteCard.vue：新增图片左上角公司标签（白色半透明）+ 难度标签（简单绿/中等黄/困难红），新增岗位标签（indigo 底色）
+- notes.js：15 条数据全部替换为真实风格面经，覆盖 12+ 家公司（字节/腾讯/阿里/美团/百度/华为/快手/拼多多/网易/B站/滴滴/蚂蚁），每条含 company/difficulty/position 字段

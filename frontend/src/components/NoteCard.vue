@@ -12,24 +12,51 @@ function formatLikes(num) {
   }
   return num
 }
+
+function difficultyStyle(level) {
+  const map = {
+    '简单': 'bg-green-100 text-green-700',
+    '中等': 'bg-amber-100 text-amber-700',
+    '困难': 'bg-red-100 text-red-700',
+  }
+  return map[level] || 'bg-gray-100 text-gray-600'
+}
 </script>
 
 <template>
   <div
     class="group cursor-pointer rounded-2xl bg-white overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
   >
-    <div class="overflow-hidden">
+    <div class="relative overflow-hidden">
       <img
         :src="note.image"
         :alt="note.title"
         class="w-full object-cover transition-transform duration-300 group-hover:scale-105"
         loading="lazy"
       />
+      <div class="absolute top-2 left-2 flex gap-1.5">
+        <span
+          class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-white/90 backdrop-blur-sm text-gray-800 shadow-sm"
+        >
+          {{ note.company }}
+        </span>
+        <span
+          class="px-2 py-0.5 rounded-md text-[11px] font-medium shadow-sm"
+          :class="difficultyStyle(note.difficulty)"
+        >
+          {{ note.difficulty }}
+        </span>
+      </div>
     </div>
     <div class="p-3">
       <h3 class="text-sm text-gray-800 leading-5 line-clamp-2 font-normal">
         {{ note.title }}
       </h3>
+      <div class="flex items-center gap-1.5 mt-2">
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-600 font-medium">
+          {{ note.position }}
+        </span>
+      </div>
       <div class="flex items-center justify-between mt-2">
         <div class="flex items-center gap-2">
           <img

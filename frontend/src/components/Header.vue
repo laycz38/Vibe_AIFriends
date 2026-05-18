@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { categories } from '../data/notes.js'
 
-const activeTab = ref('推荐')
+const activeTab = ref('全部')
 
 function selectTab(tab) {
   activeTab.value = tab
@@ -18,8 +18,8 @@ function selectTab(tab) {
         <div class="relative w-full max-w-[600px]">
           <input
             type="text"
-            placeholder="登录探索更多内容"
-            class="w-full h-10 bg-gray-100 rounded-full pl-5 pr-12 text-sm text-gray-700 placeholder-gray-400 outline-none focus:bg-white focus:ring-2 focus:ring-[#ff2442]/20 transition-all"
+            placeholder="搜索面经、公司、岗位..."
+            class="w-full h-10 bg-gray-100 rounded-full pl-5 pr-12 text-sm text-gray-700 placeholder-gray-400 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all"
           />
           <svg
             class="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
@@ -35,11 +35,11 @@ function selectTab(tab) {
       </div>
 
       <div class="flex items-center gap-4 ml-6">
-        <a href="#" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">
-          创作中心
+        <a href="#" class="text-sm text-gray-500 hover:text-indigo-600 transition-colors">
+          上传面经
         </a>
-        <a href="#" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">
-          业务合作
+        <a href="#" class="text-sm text-gray-500 hover:text-indigo-600 transition-colors">
+          AI 模拟面试
         </a>
       </div>
     </div>
@@ -51,7 +51,7 @@ function selectTab(tab) {
         @click="selectTab(tab)"
         class="whitespace-nowrap text-sm pb-1 transition-colors border-b-2 flex-shrink-0"
         :class="activeTab === tab
-          ? 'text-gray-900 font-semibold border-[#ff2442]'
+          ? 'text-gray-900 font-semibold border-indigo-500'
           : 'text-gray-500 border-transparent hover:text-gray-700'"
       >
         {{ tab }}
