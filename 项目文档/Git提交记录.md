@@ -9,7 +9,7 @@
 | 2 | 2026-05-18 17:10 | yuze liang | 集成 Tailwind CSS + daisyUI，实现导航栏 | `a12bd6c` |
 | 3 | 2026-05-18 17:15 | yuze liang | 小红书风格首页布局 + 文档整理 | `ae09628` |
 | 4 | 2026-05-18 17:30 | yuze liang | 更新项目文档（README + 架构文档 + AI提示词文档） | `12671a7` |
-| 5 | 2026-05-18 17:45 | yuze liang | 前端布局转向 AI 面经风格（Sidebar+Header+NoteCard+mock数据） | _待填入_ |
+| 5 | 2026-05-18 17:45 | yuze liang | 前端布局转向 AI 面经风格（Sidebar+Header+NoteCard+mock数据） | `2c866b2` |
 
 ### #1 — 2026-05-18 16:45
 **Initial commit: Django backend + Vue3 frontend with JWT auth**
