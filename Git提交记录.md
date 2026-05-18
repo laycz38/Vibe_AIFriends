@@ -6,7 +6,7 @@
 | # | 日期时间 | 作者 | 说明 | Commit Hash |
 |---|----------|------|------|-------------|
 | 1 | 2026-05-18 16:45 | yuze liang | Initial commit: Django backend + Vue3 frontend with JWT auth | `871fdd3` |
-| 2 | 2026-05-18 17:10 | yuze liang | 集成 Tailwind CSS + daisyUI，实现导航栏 | _待填入_ |
+| 2 | 2026-05-18 17:10 | yuze liang | 集成 Tailwind CSS + daisyUI，实现导航栏 | `a12bd6c` |
 
 ### #1 — 2026-05-18 16:45
 **Initial commit: Django backend + Vue3 frontend with JWT auth**
