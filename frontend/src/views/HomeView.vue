@@ -1,9 +1,8 @@
 <script setup>
-import TheWelcome from '../components/TheWelcome.vue'
 </script>
 
 <template>
-  <main>
-    <TheWelcome />
+  <main class="container mx-auto p-4">
+    <h1 class="text-2xl font-bold">欢迎来到 AIFriends</h1>
   </main>
 </template>

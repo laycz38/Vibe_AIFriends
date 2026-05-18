@@ -1,15 +1,9 @@
-<template>
-  <div class="about">
-    <h1>This is an about page</h1>
-  </div>
-</template>
+<script setup>
+</script>
 
-<style>
-@media (min-width: 1024px) {
-  .about {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-  }
-}
-</style>
+<template>
+  <main class="container mx-auto p-4">
+    <h1 class="text-2xl font-bold">关于 AIFriends</h1>
+    <p class="mt-2">这是一个前后端分离的 Web 项目示例。</p>
+  </main>
+</template>
