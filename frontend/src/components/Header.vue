@@ -1,8 +1,12 @@
 <script setup>
 import { ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { categories } from '../data/notes.js'
+import { useUserStore } from '../stores/user.js'
+import UserMenu from './navbar/UserMenu.vue'
 
 const activeTab = ref('全部')
+const userStore = useUserStore()
 
 function selectTab(tab) {
   activeTab.value = tab
@@ -35,12 +39,41 @@ function selectTab(tab) {
       </div>
 
       <div class="flex items-center gap-4 ml-6">
-        <a href="#" class="text-sm text-gray-500 hover:text-indigo-600 transition-colors">
-          上传面经
-        </a>
-        <a href="#" class="text-sm text-gray-500 hover:text-indigo-600 transition-colors">
+        <RouterLink
+          to="/friend/"
+          class="text-sm text-gray-500 hover:text-indigo-600 transition-colors"
+          active-class="text-indigo-600 font-medium"
+        >
           AI 模拟面试
-        </a>
+        </RouterLink>
+        <template v-if="userStore.hasPulledUserInfo">
+          <RouterLink
+            v-if="userStore.isLoggedIn"
+            to="/create/"
+            class="inline-flex items-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+            active-class="bg-indigo-700"
+          >
+            创作
+          </RouterLink>
+          <UserMenu v-if="userStore.isLoggedIn" />
+          <RouterLink
+            v-else
+            to="/user/account/login/"
+            class="text-sm text-gray-500 hover:text-indigo-600 transition-colors"
+            active-class="text-indigo-600 font-medium"
+          >
+            登录
+          </RouterLink>
+          <RouterLink
+            v-if="!userStore.isLoggedIn"
+            to="/user/account/register/"
+            class="text-sm text-gray-500 hover:text-indigo-600 transition-colors"
+            active-class="text-indigo-600 font-medium"
+          >
+            注册
+          </RouterLink>
+        </template>
+        <div v-else class="h-10 w-24 rounded-full bg-gray-100 animate-pulse"></div>
       </div>
     </div>
 

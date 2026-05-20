@@ -172,8 +172,8 @@ export const categories = [
 ]
 
 export const sidebarMenuItems = [
-  { name: '发现', icon: '🏠', active: true },
-  { name: 'AI 问答', icon: '🤖', active: false },
-  { name: '发布面经', icon: '✏️', active: false },
-  { name: '我的收藏', icon: '⭐', active: false },
+  { name: '发现', icon: '🏠', path: '/' },
+  { name: 'AI 问答', icon: '🤖', path: '/friend/' },
+  { name: '发布面经', icon: '✏️', path: '/create/' },
+  { name: '我的收藏', icon: '⭐', path: '/profile/' },
 ]

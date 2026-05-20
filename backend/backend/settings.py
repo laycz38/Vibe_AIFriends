@@ -59,7 +59,7 @@ ROOT_URLCONF = 'backend.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'static/frontend'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -125,7 +125,7 @@ STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
 
-MEDIA_URL = 'http://127.0.0.1:8000/media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # CORS settings
@@ -133,6 +133,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
+    'http://127.0.0.1:5173',
 ]
 
 # REST Framework settings

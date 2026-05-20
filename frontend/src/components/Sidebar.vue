@@ -1,5 +1,9 @@
 <script setup>
+import { RouterLink } from 'vue-router'
 import { sidebarMenuItems } from '../data/notes.js'
+import { useUserStore } from '../stores/user.js'
+
+const userStore = useUserStore()
 </script>
 
 <template>
@@ -21,26 +25,30 @@ import { sidebarMenuItems } from '../data/notes.js'
           v-for="item in sidebarMenuItems"
           :key="item.name"
         >
-          <a
-            href="#"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] transition-colors"
-            :class="item.active
-              ? 'bg-indigo-50 text-indigo-700 font-medium'
-              : 'text-gray-600 hover:bg-gray-50'"
+          <RouterLink
+            :to="item.path"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] text-gray-600 hover:bg-gray-50 transition-colors"
+            active-class="bg-indigo-50 text-indigo-700 font-medium"
+            exact-active-class="bg-indigo-50 text-indigo-700 font-medium"
           >
             <span class="text-lg">{{ item.icon }}</span>
             <span>{{ item.name }}</span>
-          </a>
+          </RouterLink>
         </li>
       </ul>
     </nav>
 
-    <div class="px-4 py-3">
-      <button
-        class="w-full py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-sm font-medium transition-all shadow-sm hover:shadow-md"
+    <div v-if="userStore.hasPulledUserInfo" class="px-4 py-3">
+      <RouterLink
+        :to="userStore.isLoggedIn ? '/profile/' : '/user/account/login/'"
+        class="block w-full py-2.5 text-center bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-sm font-medium transition-all shadow-sm hover:shadow-md"
+        active-class="ring-2 ring-indigo-200"
       >
-        立即登录
-      </button>
+        {{ userStore.isLoggedIn ? '个人主页' : '立即登录' }}
+      </RouterLink>
+    </div>
+    <div v-else class="px-4 py-3">
+      <div class="h-10 w-full rounded-xl bg-gray-100 animate-pulse"></div>
     </div>
 
     <div class="px-4 pb-3">
@@ -52,14 +60,18 @@ import { sidebarMenuItems } from '../data/notes.js'
       </div>
     </div>
 
-    <div class="px-4 pb-6">
-      <a
-        href="#"
+    <div v-if="userStore.hasPulledUserInfo" class="px-4 pb-6">
+      <RouterLink
+        :to="userStore.isLoggedIn ? `/user/${userStore.user?.id || ''}/` : '/user/account/register/'"
         class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm text-gray-500 hover:bg-gray-50 transition-colors"
+        active-class="bg-gray-100 text-gray-700"
       >
         <span>☰</span>
-        <span>更多</span>
-      </a>
+        <span>{{ userStore.isLoggedIn ? '我的空间' : '更多' }}</span>
+      </RouterLink>
+    </div>
+    <div v-else class="px-4 pb-6">
+      <div class="h-10 w-full rounded-xl bg-gray-100 animate-pulse"></div>
     </div>
   </aside>
 </template>
