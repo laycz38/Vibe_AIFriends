@@ -17,6 +17,7 @@ const userStore = useUserStore()
 
 const loading = ref(true)
 const likeLoading = ref(false)
+const favLoading = ref(false)
 const commentLoading = ref(false)
 const errorMessage = ref('')
 const note = ref(null)
@@ -110,6 +111,25 @@ async function toggleLike() {
     errorMessage.value = error.response?.data?.message || '点赞失败，请稍后重试'
   } finally {
     likeLoading.value = false
+  }
+}
+
+async function toggleFavorite() {
+  if (!userStore.isLoggedIn) {
+    requireLogin()
+    return
+  }
+
+  favLoading.value = true
+  try {
+    const response = await api.post(`/api/notes/${props.note_id}/toggle_favorite/`)
+    if (note.value) {
+      note.value.favorited = response.data.favorited
+    }
+  } catch (error) {
+    errorMessage.value = error.response?.data?.message || '收藏失败，请稍后重试'
+  } finally {
+    favLoading.value = false
   }
 }
 
@@ -207,12 +227,32 @@ watch(() => props.note_id, () => {
               </svg>
               <span>{{ note.likes }}</span>
             </button>
+            <button
+              class="btn btn-ghost gap-1"
+              :class="{ 'text-warning': note.favorited }"
+              :disabled="favLoading"
+              @click="toggleFavorite"
+            >
+              <svg class="size-5" viewBox="0 0 24 24" :fill="note.favorited ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>
+              <span>收藏</span>
+            </button>
             <button class="btn btn-ghost gap-1" @click="focusCommentBox">
               <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
               <span>{{ note.comment_count }}</span>
             </button>
+            <RouterLink
+              :to="{ name: 'friend', query: { interview: note.id } }"
+              class="btn btn-primary btn-sm gap-1"
+            >
+              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+              </svg>
+              <span>模拟面试</span>
+            </RouterLink>
           </div>
 
           <div class="divider my-2"></div>

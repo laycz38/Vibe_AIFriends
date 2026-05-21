@@ -24,7 +24,7 @@ async function submitLogin() {
     await userStore.login(form)
     router.push(String(route.query.redirect || '/'))
   } catch (error) {
-    errorMessage.value = error.message
+    errorMessage.value = error.response?.data?.message || error.message
   } finally {
     loading.value = false
   }

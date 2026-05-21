@@ -4,7 +4,7 @@ from django.db import models
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='userprofile')
-    photo = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    photo_base64 = models.TextField(blank=True, default='')
     bio = models.TextField(blank=True, default='')
 
     def __str__(self):
@@ -21,7 +21,7 @@ class InterviewNote(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='interview_notes')
     title = models.CharField(max_length=200)
     content = models.TextField()
-    cover = models.ImageField(upload_to='notes/covers/', blank=True, null=True)
+    cover_base64 = models.TextField(blank=True, default='')
     company = models.CharField(max_length=100)
     position = models.CharField(max_length=100)
     difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES, default='中等')
@@ -50,6 +50,20 @@ class InterviewNoteLike(models.Model):
         return f'{self.user.username} -> {self.note.title}'
 
 
+class InterviewNoteFavorite(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorite_notes')
+    note = models.ForeignKey(InterviewNote, on_delete=models.CASCADE, related_name='favorite_records')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'note'], name='unique_note_favorite')
+        ]
+
+    def __str__(self):
+        return f'{self.user.username} ★ {self.note.title}'
+
+
 class InterviewNoteComment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='note_comments')
     note = models.ForeignKey(InterviewNote, on_delete=models.CASCADE, related_name='comments')
@@ -61,3 +75,18 @@ class InterviewNoteComment(models.Model):
 
     def __str__(self):
         return f'{self.user.username}: {self.note.title}'
+
+
+class InterviewSession(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='interview_sessions')
+    note = models.ForeignKey(InterviewNote, on_delete=models.SET_NULL, null=True, blank=True, related_name='sessions')
+    title = models.CharField(max_length=200)
+    messages_json = models.TextField(default='[]')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f'{self.user.username}: {self.title}'

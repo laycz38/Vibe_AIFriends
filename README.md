@@ -18,7 +18,7 @@
 | | SimpleJWT | 5.5.1 | JWT 用户认证 |
 | | django-cors-headers | 4.9.0 | 跨域请求 |
 | | Gunicorn | 23.x | 生产 WSGI 服务器 |
-| | Pillow | - | 图片处理（头像/封面上传） |
+| | Pillow | - | 图片处理（Base64 压缩/转码） |
 | **前端** | Vue | 3.5.32 | UI 框架 |
 | | Vite | 8.0.13 | 构建 + 开发服务器 |
 | | Tailwind CSS | 4.3.0 | 原子化 CSS |
@@ -90,22 +90,25 @@ cd ../backend                         # 生产用 Gunicorn + Nginx
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| Django 后端骨架 | ✅ | 项目配置、静态文件、媒体文件 |
+| Django 后端骨架 | ✅ | 项目配置、路由、5个数据模型 |
 | JWT 登录/注册/退出 | ✅ | `access_token`（2h）+ `refresh_token`（7d） |
 | Token 自动刷新 | ✅ | axios 拦截器 + 队列防并发 |
 | daisyUI 响应式布局 | ✅ | drawer 侧栏 + navbar 顶栏（`lg:drawer-open`） |
 | 首页 Grid 自适应网格 | ✅ | `grid-cols-[repeat(auto-fill,minmax(240px,1fr))]` |
-| 面经发布 | ✅ | 标题/内容/公司/岗位/难度/FormData 封面上传 |
+| 面经发布 | ✅ | 标题/内容/公司/岗位/难度 + Base64 封面上传 |
+| 图片 Base64 数据库存储 | ✅ | ImageField → TextField，自动压缩至 1200px |
 | 默认封面图片 | ✅ | `picsum.photos/seed/tech_office` |
 | 面经详情 | ✅ | daisyUI `card` + `chat` 评论气泡 |
 | 面经点赞/评论 | ✅ | toggle 模式 + 唯一约束 |
+| 面经收藏 | ✅ | toggle 模式 + 独立收藏列表页 `/favorites/` |
 | 面经搜索 | ✅ | `?q=` 参数，后端 Q 多字段 `icontains` 过滤 |
 | 用户头像 + 下拉菜单 | ✅ | daisyUI `dropdown` + `avatar` |
-| 个人资料编辑 | ✅ | 头像裁剪 + 简介 |
+| 个人资料编辑 | ✅ | Base64 头像上传 + 简介 |
 | 路由守卫 | ✅ | 未登录跳转 + redirect |
 | Django 托管前端 | ✅ | SPA fallback `re_path` |
 | 生产环境变量配置 | ✅ | `settings.py` 读取 `DJANGO_DEBUG` / `DJANGO_SECRET_KEY` |
 | Nginx + Gunicorn 部署 | ✅ | `app6809.acapp.acwing.com.cn` |
+| 一键部署脚本 | ✅ | `deploy.py`（构建+上传+迁移+重启） |
 | Git 版本管理 | ✅ | GitHub: `laycz38/Vibe_AIFriends` |
 
 ---
@@ -115,6 +118,8 @@ cd ../backend                         # 生产用 Gunicorn + Nginx
 ```
 AIFriends/
 ├── README.md
+├── CLAUDE.md                    # Claude Code 项目指南
+├── deploy.py                    # 一键部署脚本
 ├── .gitignore
 │
 ├── backend/                     # Django 后端
@@ -124,21 +129,39 @@ AIFriends/
 │   │   ├── settings.py          # CORS + JWT + 模板 + 环境变量
 │   │   └── urls.py              # 根路由
 │   └── web/
-│       ├── models.py            # UserProfile / InterviewNote / Like / Comment
-│       ├── urls.py              # 14个 API 路由 + SPA fallback
-│       ├── admin.py             # 4个模型后台注册
-│       ├── views/               # note/ + user/account/
-│       └── migrations/          # 5个迁移
+│       ├── models.py            # UserProfile / InterviewNote / Like / Favorite / Comment
+│       ├── urls.py              # 16条 API 路由 + SPA fallback
+│       ├── admin.py             # 5个模型后台注册
+│       ├── views/
+│       │   ├── index.py         # SPA fallback
+│       │   ├── image_utils.py   # Base64 图片处理（压缩/转码）
+│       │   ├── note/            # get_list / get_detail / create / toggle_like / toggle_favorite / favorite_list / create_comment
+│       │   └── user/account/    # login / register / logout / refresh / info / update_profile
+│       └── migrations/          # 8个迁移
 │
 ├── frontend/                    # Vue 3 前端
 │   ├── src/
 │   │   ├── App.vue              # <NavBar><RouterView /></NavBar>
+│   │   ├── main.js
+│   │   ├── assets/main.css      # @import "tailwindcss" + @plugin "daisyui"
+│   │   ├── data/notes.js        # 分类 + 菜单配置
+│   │   ├── stores/user.js       # Pinia 用户状态
+│   │   ├── js/http/api.js       # axios + 401 自动刷新
 │   │   ├── components/
-│   │   │   ├── navbar/          # NavBar.vue + UserMenu.vue + icons/
-│   │   │   ├── FeedWaterfall.vue
-│   │   │   └── NoteCard.vue     # 240px 卡片 + hover scale-120
-│   │   ├── views/               # 10个页面
-│   │   └── router/index.js      # 路由 + 守卫
+│   │   │   ├── navbar/          # NavBar.vue + UserMenu.vue + 6个 icons/
+│   │   │   ├── FeedWaterfall.vue# Grid auto-fill 卡片网格
+│   │   │   └── NoteCard.vue     # 240px 卡片 + hover scale-120 + ☆收藏
+│   │   ├── views/
+│   │   │   ├── homepage/HomepageIndex.vue
+│   │   │   ├── note/NoteDetailIndex.vue  # card + chat + 点赞/收藏/评论
+│   │   │   ├── create/CreateIndex.vue    # Base64 封面上传
+│   │   │   ├── favorite/FavoriteIndex.vue# 收藏列表页
+│   │   │   ├── friend/FriendIndex.vue
+│   │   │   ├── profile/ProfileIndex.vue  # Base64 头像上传
+│   │   │   ├── user/account/{Login,Register}Index.vue
+│   │   │   ├── user/space/SpaceIndex.vue
+│   │   │   └── error/NotFoundIndex.vue
+│   │   └── router/index.js      # 11个路由 + 守卫
 │   ├── vite.config.js           # port 5173 + build outDir
 │   └── package.json
 │
@@ -162,16 +185,33 @@ AIFriends/
 | POST | `/api/user/account/logout/` | JWT | 退出 |
 | POST | `/api/user/account/refresh_token/` | Cookie | 刷新 access_token |
 | GET | `/api/user/account/info/` | JWT | 用户信息 |
-| POST | `/api/user/account/update_profile/` | JWT | 更新头像/简介 |
+| POST | `/api/user/account/update_profile/` | JWT | 更新头像(Base64)/简介 |
 
 ### 面经
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
 | GET | `/api/notes/` | 无 | 面经列表（`?search_query=` 搜索） |
-| POST | `/api/notes/create/` | JWT | 发布面经（FormData 封面） |
-| GET | `/api/notes/<id>/` | 无 | 面经详情 |
+| GET | `/api/notes/favorites/` | JWT | 我的收藏列表 |
+| POST | `/api/notes/create/` | JWT | 发布面经（JSON + Base64 封面） |
+| GET | `/api/notes/<id>/` | 无 | 面经详情（含 `favorited` 字段） |
 | POST | `/api/notes/<id>/toggle_like/` | JWT | 点赞/取消 |
+| POST | `/api/notes/<id>/toggle_favorite/` | JWT | 收藏/取消 |
 | POST | `/api/notes/<id>/comments/create/` | JWT | 发表评论 |
+
+---
+
+## 数据模型（5个）
+
+| 模型 | 关系 | 关键字段 |
+|------|------|---------|
+| **UserProfile** | 1:1 User | `photo_base64`(TextField), `bio` |
+| **InterviewNote** | FK User | `cover_base64`(TextField), title, company, position, difficulty, likes |
+| **InterviewNoteLike** | FK User + FK Note | unique(user, note) |
+| **InterviewNoteFavorite** | FK User + FK Note | unique(user, note), `created_at` |
+| **InterviewNoteComment** | FK User + FK Note | content |
+
+> 图片存储方式：所有用户头像和面经封面以 Base64 字符串存入数据库 TextField，而非文件系统。
+> 上传时自动压缩至 1200px 以内，详见 `web/views/image_utils.py`。
 
 ---
 
@@ -184,7 +224,10 @@ cd backend && python manage.py runserver
 # 开发：前端（HMR 热更新）
 cd frontend && npm run dev          # → localhost:5173
 
-# 生产：构建 + 部署
+# 生产：一键部署
+python deploy.py                    # 构建+上传+迁移+重启
+
+# 生产：分步构建
 cd frontend && npm run build
 # 上传 backend/ 到服务器，详见 CLAUDE_DEPLOY.md
 ```
@@ -198,3 +241,4 @@ cd frontend && npm run build
 | 技术架构 | [项目文档/项目架构文档.md](项目文档/项目架构文档.md) |
 | 部署指南 | [项目文档/CLAUDE_DEPLOY.md](项目文档/CLAUDE_DEPLOY.md) |
 | Git 历史 | [项目文档/Git提交记录.md](项目文档/Git提交记录.md) |
+| Claude Code 指南 | [CLAUDE.md](CLAUDE.md) |

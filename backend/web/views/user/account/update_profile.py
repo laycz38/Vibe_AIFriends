@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from web.models import UserProfile
+from web.views.image_utils import process_base64
 from web.views.user.account.common import serialize_user
 
 
@@ -12,11 +13,11 @@ from web.views.user.account.common import serialize_user
 def update_profile(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     bio = str(request.data.get('bio', '')).strip()
-    photo = request.FILES.get('photo')
+    photo_b64 = str(request.data.get('photo_base64', '')).strip()
 
     profile.bio = bio
-    if photo is not None:
-        profile.photo = photo
+    if photo_b64:
+        profile.photo_base64 = process_base64(photo_b64)
     profile.save()
 
     return Response({

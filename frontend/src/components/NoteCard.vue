@@ -1,17 +1,42 @@
 <script setup>
 import { ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user.js'
+import api from '@/js/http/api.js'
 
 const DEFAULT_COVER = 'https://picsum.photos/seed/tech_office/800/600'
 
-defineProps({
+const props = defineProps({
   note: {
     type: Object,
     required: true,
   },
 })
 
+const userStore = useUserStore()
+const router = useRouter()
 const isHover = ref(false)
+
+function requireLogin() {
+  router.push({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
+}
+
+async function toggleFavorite() {
+  if (!userStore.isLoggedIn) return requireLogin()
+  try {
+    const response = await api.post(`/api/notes/${props.note.id}/toggle_favorite/`)
+    props.note.favorited = response.data.favorited
+  } catch (_) {}
+}
+
+async function toggleLike() {
+  if (!userStore.isLoggedIn) return requireLogin()
+  try {
+    const response = await api.post(`/api/notes/${props.note.id}/toggle_like/`)
+    props.note.liked = response.data.liked
+    props.note.likes = response.data.likes
+  } catch (_) {}
+}
 
 function formatLikes(num) {
   if (num >= 10000) {
@@ -81,11 +106,18 @@ function difficultyStyle(level) {
         </div>
         <span class="text-sm text-base-content/70 line-clamp-1">{{ note.author }}</span>
       </RouterLink>
-      <div class="flex items-center gap-1 text-base-content/40">
-        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-        </svg>
-        <span class="text-xs">{{ formatLikes(note.likes) }}</span>
+      <div class="flex items-center gap-2 text-base-content/40">
+        <button class="btn btn-ghost btn-xs p-0 min-h-0 h-auto" @click.prevent="toggleFavorite">
+          <svg class="size-4" viewBox="0 0 24 24" :fill="note.favorited ? '#f59e0b' : 'none'" stroke="currentColor" stroke-width="2">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+          </svg>
+        </button>
+        <button class="btn btn-ghost btn-xs p-0 min-h-0 h-auto gap-1" @click.prevent="toggleLike">
+          <svg class="size-4" viewBox="0 0 24 24" :fill="note.liked ? '#ef4444' : 'none'" stroke="#ef4444" stroke-width="2">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+          </svg>
+          <span class="text-xs">{{ formatLikes(note.likes) }}</span>
+        </button>
       </div>
     </div>
   </div>

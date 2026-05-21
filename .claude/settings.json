@@ -1,0 +1,13 @@
+{
+  "skills": {
+    "deploy": {
+      "name": "deploy",
+      "description": "一键部署 AIFriends 到生产服务器（121.43.36.186）。构建前端 → 上传代码 → 数据库迁移 → 重启 Gunicorn",
+      "steps": [
+        {
+          "prompt": "运行一键部署脚本。用户可以使用参数：--skip-build（跳过前端构建）、--skip-upload（跳过上传）、--migrate-only（只迁移）、--restart（只重启）。运行 ${PROJECT_ROOT}/deploy.py。如果用户提供了参数，追加到命令后面。"
+        }
+      ]
+    }
+  }
+}

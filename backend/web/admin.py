@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import InterviewNote, InterviewNoteComment, InterviewNoteLike, UserProfile
+from .models import InterviewNote, InterviewNoteComment, InterviewNoteFavorite, InterviewNoteLike, UserProfile
 
 
 @admin.register(UserProfile)
@@ -17,6 +17,12 @@ class InterviewNoteAdmin(admin.ModelAdmin):
 
 @admin.register(InterviewNoteLike)
 class InterviewNoteLikeAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'note', 'created_at')
+    search_fields = ('user__username', 'note__title')
+
+
+@admin.register(InterviewNoteFavorite)
+class InterviewNoteFavoriteAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'note', 'created_at')
     search_fields = ('user__username', 'note__title')
 

@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pip install openai)",
+      "Bash(where pip *)",
+      "Bash(ls requirements.txt)",
+      "Bash(ls backend/requirements.txt)",
+      "Bash(ls *.txt)",
+      "Read(//c/Users/20818/AppData/Local/Programs/Python//**)",
+      "Read(//c/Users/20818/AppData/Local/Programs/Python/**)",
+      "Bash(/c/Users/20818/AppData/Local/Programs/Python/Python310/python.exe *)",
+      "Bash(pip install *)",
+      "Bash(D:/coding_software/anaconda3/envs/vibe_AIFriends/python.exe *)",
+      "Bash(export PYTHONIOENCODING=utf-8)",
+      "WebFetch(domain:app6809.acapp.acwing.com.cn)",
+      "Bash(python manage.py migrate)",
+      "Bash(/c/Users/20818/AppData/Local/Programs/Python/Python*/python.exe --version)",
+      "Bash(pip config *)",
+      "Bash(pip3 config *)",
+      "Bash(conda info *)",
+      "Bash(python deploy.py)",
+      "Read(//c/Users/20818/AppData/Roaming/pip//**)",
+      "Read(//c/Users/20818/AppData/Roaming/pip/**)",
+      "Bash(export NO_PROXY=\"*\")",
+      "Bash(py manage.py migrate)",
+      "Bash(py *)",
+      "Bash(D:/coding_software/anaconda3/python.exe *)",
+      "Bash(D:/coding_software/anaconda3/Scripts/conda.exe env *)",
+      "Bash(curl *)"
+    ]
+  }
+}

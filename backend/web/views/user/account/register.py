@@ -1,4 +1,6 @@
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -25,6 +27,14 @@ def register(request):
     if password != password_confirm:
         return Response(
             {'result': 'error', 'message': '两次输入的密码不一致'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        validate_password(password)
+    except ValidationError as e:
+        return Response(
+            {'result': 'error', 'message': '、'.join(e.messages)},
             status=status.HTTP_400_BAD_REQUEST,
         )
 

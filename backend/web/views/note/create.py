@@ -1,9 +1,10 @@
-﻿from rest_framework import status
+from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from web.models import InterviewNote
+from web.views.image_utils import process_base64
 from web.views.note.common import serialize_note
 
 
@@ -15,7 +16,7 @@ def create(request):
     company = str(request.data.get('company', '')).strip()
     position = str(request.data.get('position', '')).strip()
     difficulty = str(request.data.get('difficulty', '中等')).strip() or '中等'
-    cover = request.FILES.get('cover')
+    cover_b64 = str(request.data.get('cover_base64', '')).strip()
 
     if not title or not content or not company or not position:
         return Response(
@@ -33,7 +34,7 @@ def create(request):
         user=request.user,
         title=title,
         content=content,
-        cover=cover,
+        cover_base64=process_base64(cover_b64) if cover_b64 else '',
         company=company,
         position=position,
         difficulty=difficulty,

@@ -1,21 +1,588 @@
-﻿<template>
-  <section class="p-6">
-    <div class="max-w-4xl mx-auto bg-white rounded-3xl border border-gray-100 p-8 shadow-sm">
-      <p class="text-sm text-indigo-500 font-medium mb-2">AI Mock Interview</p>
-      <h1 class="text-3xl font-bold text-gray-900 mb-4">AI 问答页</h1>
-      <p class="text-gray-600 leading-7 mb-6">
-        这里后续可以接入基于面经检索的 AI 问答、追问和模拟面试能力。
-      </p>
-      <div class="grid gap-4 md:grid-cols-2">
-        <div class="rounded-2xl bg-gray-50 p-5">
-          <h2 class="text-lg font-semibold text-gray-900 mb-2">专项练习</h2>
-          <p class="text-sm text-gray-600">按公司、岗位、难度筛选面经后发起问答。</p>
+<script setup>
+import { computed, onMounted, onBeforeUnmount, ref, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import api from '@/js/http/api.js'
+
+const route = useRoute()
+const router = useRouter()
+
+// -- state --
+const messages = ref([])
+const inputText = ref('')
+const sending = ref(false)
+const chatContainer = ref(null)
+const speakingIndex = ref(-1)
+const notes = ref([])
+const sessions = ref([])
+const loadedSessionId = ref(null)
+const sessionId = ref(null) // current auto-save session id
+const voices = ref([])
+const voiceGender = ref(localStorage.getItem('tts_gender') || 'female')
+const showSaveToast = ref(false)
+const showCleanWarning = ref(false)
+const cleanDismissed = ref(false)
+
+// -- computed --
+const interviewNoteId = computed(() => {
+  const raw = route.query.interview
+  return raw ? Number(raw) : null
+})
+const currentNote = computed(() => {
+  if (!interviewNoteId.value) return null
+  return notes.value.find((n) => n.id === interviewNoteId.value) || null
+})
+const isInterviewMode = computed(() => !!currentNote.value)
+const isReadOnly = computed(() => loadedSessionId.value !== null)
+const draftKey = computed(() => {
+  if (isInterviewMode.value) return `chat_draft_note_${interviewNoteId.value}`
+  return 'chat_draft_free'
+})
+const hasMessages = computed(() => messages.value.length > 1)
+
+// message total char count
+const totalChars = computed(() => {
+  return messages.value.reduce((sum, m) => sum + (m.content || '').length, 0)
+})
+
+// text length warning
+const charWarningLevel = computed(() => {
+  if (cleanDismissed.value) return null
+  if (totalChars.value > 6000) return 'danger'
+  if (totalChars.value > 4000) return 'warn'
+  return null
+})
+
+async function scrollToBottom() {
+  await nextTick()
+  if (chatContainer.value) {
+    chatContainer.value.scrollTop = chatContainer.value.scrollHeight
+  }
+}
+
+function getWelcomeMessage() {
+  if (currentNote.value) {
+    return `你好！我来模拟一下「${currentNote.value.title}」（${currentNote.value.company} · ${currentNote.value.position}）的面试，准备好了就开始吧，先简单介绍一下自己~`
+  }
+  return '你好！我是 AI 面试助手，可以帮你解答面试相关的问题。选择一篇面经笔记可以开始模拟面试，也可以直接向我提问。'
+}
+
+// -- voice / emotional TTS --
+// Classify voices by gender heuristically
+function getMaleVoices() {
+  return voices.value.filter((v) => {
+    const name = v.name.toLowerCase()
+    return name.includes('male') || name.includes('男生') || name.includes('男声') ||
+           name.includes('zira') || name.includes('david') || name.includes('james') ||
+           name.includes('george') || name.includes('richard') || name.includes('yunxi') ||
+           name.includes('yunjian') || name.includes('yunyang') || name.includes('zhcn-xiaochen') ||
+           name.includes('kangkang')
+  })
+}
+function getFemaleVoices() {
+  return voices.value.filter((v) => {
+    const name = v.name.toLowerCase()
+    return name.includes('female') || name.includes('女生') || name.includes('女声') ||
+           name.includes('susan') || name.includes('hazel') || name.includes('zhiyu') ||
+           name.includes('xiaoxiao') || name.includes('xiaoqiu') || name.includes('yunye') ||
+           name.includes('yunjia') || name.includes('xiaohan') || name.includes('xiaoshuang') ||
+           name.includes('zhcn-xiaoxiao') || name.includes('meijia') || name.includes('huihui')
+  })
+}
+
+function getVoice() {
+  const isMale = voiceGender.value === 'male'
+  const preferred = isMale ? getMaleVoices() : getFemaleVoices()
+  if (preferred.length > 0) return preferred[0]
+  // fallback to any zh voice
+  const zh = voices.value.find((v) => v.lang.startsWith('zh'))
+  return zh || voices.value[0] || null
+}
+
+function speak(index, text) {
+  if (speakingIndex.value === index) {
+    speechSynthesis.cancel()
+    speakingIndex.value = -1
+    return
+  }
+  speechSynthesis.cancel()
+
+  // Emotional TTS: add expression via pitch/rate variation
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'zh-CN'
+  utterance.rate = 0.88 // slightly slower for natural feel
+  utterance.pitch = 1.05 // slight pitch boost for warmth
+
+  const voice = getVoice()
+  if (voice) utterance.voice = voice
+
+  utterance.onend = () => { speakingIndex.value = -1 }
+  utterance.onerror = () => { speakingIndex.value = -1 }
+  speakingIndex.value = index
+  speechSynthesis.speak(utterance)
+}
+
+function setGender(gender) {
+  voiceGender.value = gender
+  localStorage.setItem('tts_gender', gender)
+}
+
+// -- localStorage draft --
+function saveDraft() {
+  if (messages.value.length > 1) {
+    localStorage.setItem(draftKey.value, JSON.stringify(messages.value))
+  }
+}
+
+function loadDraft() {
+  const raw = localStorage.getItem(draftKey.value)
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed.length) messages.value = parsed
+      return true
+    } catch { /* ignore */ }
+  }
+  return false
+}
+
+function clearDraft() {
+  localStorage.removeItem(draftKey.value)
+}
+
+// -- auto-save to backend --
+async function autoSaveSession() {
+  if (messages.value.length <= 1) return
+  const payload = {
+    messages: messages.value.map(({ role, content }) => ({ role, content })),
+    note_id: interviewNoteId.value || null,
+    title: currentNote.value
+      ? `${currentNote.value.company} - ${currentNote.value.title} 面试`
+      : '自由对话',
+  }
+  if (sessionId.value) payload.session_id = sessionId.value
+  try {
+    const { data } = await api.post('/api/chat/sessions/save/', payload)
+    if (data.result === 'success') {
+      sessionId.value = data.session.id
+      localStorage.setItem('chat_session_id', String(data.session.id))
+      loadSessions()
+    }
+  } catch { /* silent */ }
+}
+
+async function loadAutoSession() {
+  const stored = localStorage.getItem('chat_session_id')
+  if (stored) {
+    try {
+      const sid = Number(stored)
+      const { data } = await api.get(`/api/chat/sessions/${sid}/`)
+      if (data.result === 'success' && data.session.messages.length > 0) {
+        messages.value = data.session.messages
+        sessionId.value = sid
+        loadedSessionId.value = sid // show as read-only? No, allow continuing
+        loadedSessionId.value = null // allow continuing
+        return true
+      }
+    } catch { /* not found or expired */ }
+  }
+  return false
+}
+
+// -- send message --
+async function send() {
+  const text = inputText.value.trim()
+  if (!text || sending.value || isReadOnly.value) return
+
+  messages.value.push({ role: 'user', content: text })
+  inputText.value = ''
+  sending.value = true
+  await scrollToBottom()
+
+  const payload = {
+    messages: messages.value.map(({ role, content }) => ({ role, content })),
+  }
+  if (isInterviewMode.value) {
+    payload.note_id = interviewNoteId.value
+  }
+  const url = isInterviewMode.value ? '/api/chat/interview/' : '/api/chat/send/'
+
+  try {
+    const { data } = await api.post(url, payload)
+    if (data.result === 'success') {
+      messages.value.push(data.message)
+      if (data.note) {
+        const existing = notes.value.find((n) => n.id === data.note.id)
+        if (!existing) notes.value.push(data.note)
+      }
+      // auto-save to backend
+      await autoSaveSession()
+      // auto-play in interview mode
+      if (isInterviewMode.value) {
+        setTimeout(() => speak(messages.value.length - 1, data.message.content), 300)
+      }
+    } else {
+      messages.value.push({ role: 'assistant', content: `出错了：${data.message || '未知错误'}` })
+    }
+  } catch (e) {
+    messages.value.push({
+      role: 'assistant',
+      content: `请求失败：${e.response?.data?.message || e.message || '网络错误'}`,
+    })
+  } finally {
+    sending.value = false
+    await scrollToBottom()
+  }
+}
+
+function handleKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    send()
+  }
+}
+
+// -- clear conversation --
+function clearConversation() {
+  if (messages.value.length <= 1) return
+  saveDraft() // backup before clear
+  messages.value = [{ role: 'assistant', content: getWelcomeMessage() }]
+  clearDraft()
+  sessionId.value = null
+  localStorage.removeItem('chat_session_id')
+  cleanDismissed.value = false
+  showCleanWarning.value = false
+  speechSynthesis.cancel()
+  speakingIndex.value = -1
+}
+
+// -- notes & sessions --
+async function selectNote(noteId) {
+  router.push({ name: 'friend', query: noteId ? { interview: noteId } : {} })
+}
+
+function exitInterview() {
+  router.push({ name: 'friend' })
+}
+
+async function loadNotes() {
+  try {
+    const { data } = await api.get('/api/notes/')
+    if (data.result === 'success') notes.value = data.notes
+  } catch { /* silent */ }
+}
+
+async function loadSessions() {
+  try {
+    const { data } = await api.get('/api/chat/sessions/')
+    if (data.result === 'success') sessions.value = data.sessions
+  } catch { /* silent */ }
+}
+
+async function saveSession() {
+  if (!hasMessages.value) return
+  await autoSaveSession()
+  showSaveToast.value = true
+  setTimeout(() => { showSaveToast.value = false }, 2000)
+}
+
+async function loadSession(sid) {
+  if (sid === 'back') {
+    loadedSessionId.value = null
+    sessionId.value = Number(localStorage.getItem('chat_session_id')) || null
+    const restored = await loadAutoSession()
+    if (!restored) {
+      const found = loadDraft()
+      if (!found) messages.value = [{ role: 'assistant', content: getWelcomeMessage() }]
+    }
+    await scrollToBottom()
+    return
+  }
+  if (!sid) return
+  try {
+    const { data } = await api.get(`/api/chat/sessions/${sid}/`)
+    if (data.result === 'success') {
+      messages.value = data.session.messages
+      loadedSessionId.value = sid
+      if (data.session.note_id) {
+        router.replace({ name: 'friend', query: { interview: data.session.note_id } })
+      }
+      await scrollToBottom()
+    }
+  } catch { /* silent */ }
+}
+
+async function deleteSession(sid) {
+  try {
+    await api.delete(`/api/chat/sessions/${sid}/delete/`)
+    sessions.value = sessions.value.filter((s) => s.id !== sid)
+    if (loadedSessionId.value === sid || sessionId.value === sid) {
+      loadedSessionId.value = null
+      sessionId.value = null
+      localStorage.removeItem('chat_session_id')
+      messages.value = [{ role: 'assistant', content: getWelcomeMessage() }]
+    }
+  } catch { /* silent */ }
+}
+
+function formatTime(iso) {
+  const d = new Date(iso)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// -- life cycle --
+watch(interviewNoteId, (newId, oldId) => {
+  if (newId !== oldId) {
+    loadedSessionId.value = null
+    sessionId.value = null
+    localStorage.removeItem('chat_session_id')
+    const found = loadDraft()
+    if (!found) messages.value = [{ role: 'assistant', content: getWelcomeMessage() }]
+    scrollToBottom()
+  }
+})
+
+onMounted(() => {
+  speechSynthesis.getVoices()
+  speechSynthesis.onvoiceschanged = loadVoices
+  loadVoices()
+  loadNotes()
+  loadSessions()
+
+  const restored = loadAutoSession()
+  if (!restored) {
+    const found = loadDraft()
+    if (!found) messages.value = [{ role: 'assistant', content: getWelcomeMessage() }]
+  }
+  scrollToBottom()
+})
+
+onBeforeUnmount(() => {
+  speechSynthesis.cancel()
+})
+
+function loadVoices() {
+  const all = speechSynthesis.getVoices()
+  voices.value = all.filter((v) => v.lang.startsWith('zh'))
+  if (voices.value.length === 0) voices.value = all
+}
+</script>
+
+<template>
+  <div class="flex flex-col h-[calc(100vh-4rem)] max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="px-6 py-3 border-b border-base-300 shrink-0 space-y-2">
+      <div class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <h1 class="text-xl font-bold truncate">
+            <template v-if="loadedSessionId">查看记录</template>
+            <template v-else>{{ isInterviewMode ? '模拟面试' : 'AI 面试助手' }}</template>
+          </h1>
+          <p class="text-sm text-base-content/60 truncate">
+            <template v-if="loadedSessionId">只读回放，不可继续对话</template>
+            <template v-else-if="isInterviewMode">
+              正在面试：{{ currentNote.title }}（{{ currentNote.company }} · {{ currentNote.position }}）
+              <button class="link link-primary text-xs ml-2" @click="exitInterview">退出面试</button>
+            </template>
+            <template v-else>基于 DeepSeek 大模型，自动保存到云端</template>
+          </p>
         </div>
-        <div class="rounded-2xl bg-gray-50 p-5">
-          <h2 class="text-lg font-semibold text-gray-900 mb-2">模拟追问</h2>
-          <p class="text-sm text-gray-600">围绕项目经历和高频题自动生成追问。</p>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <!-- Voice gender selector -->
+          <div class="join join-xs">
+            <button
+              class="btn btn-xs join-item"
+              :class="voiceGender === 'female' ? 'btn-active' : 'btn-ghost'"
+              @click="setGender('female')"
+            >
+              女生
+            </button>
+            <button
+              class="btn btn-xs join-item"
+              :class="voiceGender === 'male' ? 'btn-active' : 'btn-ghost'"
+              @click="setGender('male')"
+            >
+              男生
+            </button>
+          </div>
+
+          <!-- Note selector -->
+          <select
+            class="select select-bordered select-xs w-32"
+            :disabled="!!loadedSessionId"
+            @change="selectNote(($event.target).value)"
+            :value="interviewNoteId || ''"
+          >
+            <option value="">自由对话</option>
+            <option v-for="n in notes" :key="n.id" :value="n.id">{{ n.company }} - {{ n.title }}</option>
+          </select>
+
+          <!-- History dropdown -->
+          <div class="dropdown dropdown-end">
+            <button tabindex="0" class="btn btn-ghost btn-xs">
+              {{ sessions.filter((s) => !loadedSessionId || s.id !== loadedSessionId).length ? '历史' : '历史' }}
+              记录
+            </button>
+            <ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-10 w-72 p-2 shadow mt-1 max-h-72 overflow-y-auto flex-nowrap">
+              <li v-if="sessions.length === 0" class="text-xs text-base-content/40 px-3 py-2">暂无记录</li>
+              <li
+                v-for="s in sessions"
+                :key="s.id"
+                class="flex flex-row items-center"
+                :class="{ 'bg-primary/10 rounded': loadedSessionId === s.id }"
+              >
+                <a class="text-sm flex-1 min-w-0" @click="loadSession(s.id)">
+                  <div class="truncate">{{ s.title }}</div>
+                  <div class="text-xs text-base-content/40">{{ formatTime(s.updated_at) }}</div>
+                </a>
+                <button class="btn btn-ghost btn-xs text-error shrink-0" @click="deleteSession(s.id)">×</button>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Save button -->
+          <template v-if="!loadedSessionId">
+            <button class="btn btn-outline btn-xs" :disabled="!hasMessages" @click="saveSession">
+              保存
+            </button>
+            <button
+              v-if="hasMessages"
+              class="btn btn-ghost btn-xs text-warning"
+              @click="clearConversation"
+            >
+              清空
+            </button>
+          </template>
+          <button v-else class="btn btn-outline btn-xs" @click="loadSession('back')">
+            返回对话
+          </button>
+        </div>
+      </div>
+
+      <!-- Save toast -->
+      <div v-if="showSaveToast" class="toast toast-end">
+        <div class="alert alert-success text-sm py-1">已保存记录</div>
+      </div>
+    </div>
+
+    <!-- Char length warning -->
+    <div
+      v-if="charWarningLevel"
+      class="px-6 py-2 text-sm flex items-center justify-between gap-4"
+      :class="charWarningLevel === 'danger' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'"
+    >
+      <span>
+        {{ charWarningLevel === 'danger'
+          ? '对话内容过长（超过 6000 字），可能影响性能和效果，建议清空并保存。'
+          : '对话内容较长（超过 4000 字），建议保存记录后清空，以保持体验。' }}
+      </span>
+      <div class="flex gap-2 shrink-0">
+        <button class="btn btn-xs" :class="charWarningLevel === 'danger' ? 'btn-error' : 'btn-warning'" @click="clearConversation">
+          清空并保存
+        </button>
+        <button class="btn btn-ghost btn-xs" @click="cleanDismissed = true">知道了</button>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div ref="chatContainer" class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+      <div
+        v-for="(msg, i) in messages"
+        :key="i"
+        class="chat"
+        :class="msg.role === 'user' ? 'chat-end' : 'chat-start'"
+      >
+        <div class="chat-image avatar">
+          <div class="w-10 rounded-full">
+            <span
+              class="flex items-center justify-center w-full h-full text-white text-sm font-medium"
+              :class="msg.role === 'user' ? 'bg-primary' : 'bg-secondary'"
+            >
+              {{ msg.role === 'user' ? '我' : (isInterviewMode ? '官' : 'AI') }}
+            </span>
+          </div>
+        </div>
+        <div
+          class="chat-bubble"
+          :class="msg.role === 'user' ? 'chat-bubble-primary' : ''"
+        >
+          {{ msg.content }}
+        </div>
+        <div v-if="msg.role === 'assistant'" class="chat-footer mt-1">
+          <button
+            class="btn btn-ghost btn-xs gap-1"
+            @click="speak(i, msg.content)"
+          >
+            <svg
+              v-if="speakingIndex !== i"
+              class="size-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+            </svg>
+            <svg
+              v-else
+              class="size-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <line x1="9" y1="9" x2="15" y2="15" />
+              <line x1="15" y1="9" x2="9" y2="15" />
+            </svg>
+            <span>{{ speakingIndex === i ? '停止' : '朗读' }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="sending" class="chat chat-start">
+        <div class="chat-image avatar">
+          <div class="w-10 rounded-full">
+            <span class="flex items-center justify-center w-full h-full bg-secondary text-white text-sm font-medium">
+              {{ isInterviewMode ? '官' : 'AI' }}
+            </span>
+          </div>
+        </div>
+        <div class="chat-bubble">
+          <span class="loading loading-dots loading-sm"></span>
         </div>
       </div>
     </div>
-  </section>
+
+    <!-- Input -->
+    <div class="px-6 py-4 border-t border-base-300 shrink-0">
+      <div v-if="isReadOnly" class="text-center text-sm text-base-content/40 py-2">
+        这是已保存的记录，只读回放。点击"返回对话"继续聊天。
+      </div>
+      <div v-else class="flex gap-2">
+        <input
+          v-model="inputText"
+          type="text"
+          :placeholder="isInterviewMode ? '输入你的回答...' : '输入你的问题...'"
+          class="input input-bordered flex-1"
+          :disabled="sending"
+          @keydown="handleKeydown"
+        />
+        <button
+          class="btn btn-primary"
+          :disabled="!inputText.trim() || sending"
+          @click="send"
+        >
+          发送
+        </button>
+      </div>
+    </div>
+  </div>
 </template>

@@ -6,3 +6,4 @@ media/
 staticfiles/
 static/
 node_modules/
+.env

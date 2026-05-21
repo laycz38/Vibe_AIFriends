@@ -14,6 +14,13 @@ const user = useUserStore()
 const router = useRouter()
 const route = useRoute()
 const searchQuery = ref('')
+const drawerCheckbox = ref(null)
+
+function closeDrawer() {
+  if (drawerCheckbox.value) {
+    drawerCheckbox.value.checked = false
+  }
+}
 
 watch(() => route.query.q, (newQ) => {
   searchQuery.value = newQ || ''
@@ -31,7 +38,7 @@ function handleSearch() {
 
 <template>
   <div class="drawer lg:drawer-open">
-    <input id="my-drawer" type="checkbox" class="drawer-toggle" />
+    <input id="my-drawer" type="checkbox" class="drawer-toggle" ref="drawerCheckbox" />
     <div class="drawer-content">
       <nav class="navbar w-full bg-base-100 shadow-sm">
         <div class="navbar-start">
@@ -84,6 +91,7 @@ function handleSearch() {
               active-class="menu-active"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right py-3"
               data-tip="首页"
+              @click="closeDrawer"
             >
               <HomepageIcon />
               <span class="is-drawer-close:hidden text-base ml-2 whitespace-nowrap">首页</span>
@@ -95,6 +103,7 @@ function handleSearch() {
               active-class="menu-active"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right py-3"
               data-tip="AI 问答"
+              @click="closeDrawer"
             >
               <FriendIcon />
               <span class="is-drawer-close:hidden text-base ml-2 whitespace-nowrap">AI 问答</span>
@@ -106,6 +115,7 @@ function handleSearch() {
               active-class="menu-active"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right py-3"
               data-tip="发布面经"
+              @click="closeDrawer"
             >
               <CreateIcon />
               <span class="is-drawer-close:hidden text-base ml-2 whitespace-nowrap">发布面经</span>
@@ -113,10 +123,11 @@ function handleSearch() {
           </li>
           <li>
             <RouterLink
-              :to="{ name: 'profile' }"
+              :to="{ name: 'favorites' }"
               active-class="menu-active"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right py-3"
               data-tip="我的收藏"
+              @click="closeDrawer"
             >
               <StarIcon />
               <span class="is-drawer-close:hidden text-base ml-2 whitespace-nowrap">我的收藏</span>

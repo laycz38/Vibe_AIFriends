@@ -25,7 +25,7 @@ async function submitRegister() {
     await userStore.register(form)
     router.push(String(route.query.redirect || '/'))
   } catch (error) {
-    errorMessage.value = error.message
+    errorMessage.value = error.response?.data?.message || error.message
   } finally {
     loading.value = false
   }
@@ -54,6 +54,9 @@ async function submitRegister() {
           class="w-full rounded-2xl border border-gray-200 px-4 py-3 outline-none focus:border-indigo-500"
           placeholder="确认密码"
         />
+        <p class="text-xs text-gray-400">
+          密码至少 8 位
+        </p>
         <p v-if="errorMessage" class="text-sm text-red-500">
           {{ errorMessage }}
         </p>

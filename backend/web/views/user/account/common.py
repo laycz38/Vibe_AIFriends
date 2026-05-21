@@ -1,16 +1,12 @@
-﻿from web.models import InterviewNoteComment, InterviewNoteLike, InterviewNote, UserProfile
+from web.models import InterviewNoteComment, InterviewNoteLike, InterviewNote, UserProfile
 
 
 def serialize_user(user, request):
     profile, _ = UserProfile.objects.get_or_create(user=user)
-    photo = ''
-    if profile.photo:
-        photo = request.build_absolute_uri(profile.photo.url)
-
     return {
         'id': user.id,
         'username': user.username,
-        'photo': photo,
+        'photo': profile.photo_base64,
         'bio': profile.bio,
         'note_count': InterviewNote.objects.filter(user=user).count(),
         'comment_count': InterviewNoteComment.objects.filter(user=user).count(),

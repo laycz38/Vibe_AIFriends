@@ -14,7 +14,7 @@ def refresh_token(request):
     refresh_token_value = request.COOKIES.get('refresh_token')
     if not refresh_token_value:
         return Response(
-            {'result': 'error', 'message': '未检测到 refresh_token'},
+            {'result': 'error', 'message': '登录已过期，请重新登录'},
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -23,7 +23,7 @@ def refresh_token(request):
         user = User.objects.get(id=token['user_id'])
     except (TokenError, User.DoesNotExist, KeyError):
         return Response(
-            {'result': 'error', 'message': 'refresh_token 已失效'},
+            {'result': 'error', 'message': '登录已过期，请重新登录'},
             status=status.HTTP_401_UNAUTHORIZED,
         )
 

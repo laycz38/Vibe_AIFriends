@@ -26,6 +26,15 @@ watch(
   { immediate: true },
 )
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 function handleAvatarChange(event) {
   const file = event.target.files?.[0] || null
   avatarFile.value = file
@@ -43,12 +52,11 @@ async function submitProfile() {
   errorMessage.value = ''
 
   try {
-    const formData = new FormData()
-    formData.append('bio', form.bio)
+    const payload = { bio: form.bio }
     if (avatarFile.value) {
-      formData.append('photo', avatarFile.value)
+      payload.photo_base64 = await fileToBase64(avatarFile.value)
     }
-    await userStore.updateProfile(formData)
+    await userStore.updateProfile(payload)
     avatarFile.value = null
     avatarPreview.value = userStore.user?.photo || ''
     successMessage.value = '资料已更新'

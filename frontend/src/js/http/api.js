@@ -52,12 +52,20 @@ api.interceptors.response.use(
     }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // 登录、注册等公开接口不需要刷新 token
+      const url = String(originalRequest.url || '')
+      const isAuthEndpoint = url.includes('/api/user/account/login/') ||
+                             url.includes('/api/user/account/register/')
+      if (isAuthEndpoint) {
+        return Promise.reject(error)
+      }
+
       originalRequest._retry = true
 
       return new Promise((resolve, reject) => {
         subscribeTokenRefresh((token, refreshError) => {
           if (refreshError || !token) {
-            reject(refreshError || error)
+            reject(error)
             return
           }
 

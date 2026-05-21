@@ -17,6 +17,15 @@ const form = reactive({
   content: '',
 })
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 function updateCoverPreview(file) {
   if (coverPreviewUrl.value) {
     URL.revokeObjectURL(coverPreviewUrl.value)
@@ -39,17 +48,18 @@ async function submitNote() {
   errorMessage.value = ''
 
   try {
-    const formData = new FormData()
-    formData.append('title', form.title)
-    formData.append('company', form.company)
-    formData.append('position', form.position)
-    formData.append('difficulty', form.difficulty)
-    formData.append('content', form.content)
+    const payload = {
+      title: form.title,
+      company: form.company,
+      position: form.position,
+      difficulty: form.difficulty,
+      content: form.content,
+    }
     if (coverFile.value) {
-      formData.append('cover', coverFile.value)
+      payload.cover_base64 = await fileToBase64(coverFile.value)
     }
 
-    await api.post('/api/notes/create/', formData)
+    await api.post('/api/notes/create/', payload)
     router.push('/')
   } catch (error) {
     errorMessage.value = error.response?.data?.message || '发布失败，请稍后重试'
@@ -117,7 +127,7 @@ onBeforeUnmount(() => {
             @change="handleCoverChange"
           />
           <p class="mt-2 text-xs text-gray-400">
-            支持本地图片上传；如果不上传，首页会显示默认封面占位样式。
+            支持本地图片上传；如果不上传，首页会显示默认封面。
           </p>
           <div
             v-if="coverPreviewUrl"

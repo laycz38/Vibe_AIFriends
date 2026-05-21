@@ -1,14 +1,19 @@
-﻿from web.models import InterviewNoteComment, InterviewNoteLike, UserProfile
+from django.core.exceptions import ObjectDoesNotExist
+
+from web.models import InterviewNoteComment, InterviewNoteFavorite, InterviewNoteLike, UserProfile
 
 
 def build_avatar_url(profile, request):
-    if profile and profile.photo:
-        return request.build_absolute_uri(profile.photo.url)
+    if profile and profile.photo_base64:
+        return profile.photo_base64
     return ''
 
 
 def serialize_comment(comment, request):
-    profile, _ = UserProfile.objects.get_or_create(user=comment.user)
+    try:
+        profile = comment.user.userprofile
+    except ObjectDoesNotExist:
+        profile, _ = UserProfile.objects.get_or_create(user=comment.user)
     return {
         'id': comment.id,
         'content': comment.content,
@@ -19,14 +24,17 @@ def serialize_comment(comment, request):
 
 
 def serialize_note(note, request, current_user=None, include_comments=False):
-    profile, _ = UserProfile.objects.get_or_create(user=note.user)
-    image = ''
-    if note.cover:
-        image = request.build_absolute_uri(note.cover.url)
+    try:
+        profile = note.user.userprofile
+    except ObjectDoesNotExist:
+        profile, _ = UserProfile.objects.get_or_create(user=note.user)
 
-    liked = False
-    if current_user and current_user.is_authenticated:
-        liked = InterviewNoteLike.objects.filter(user=current_user, note=note).exists()
+    image = note.cover_base64
+
+    # Use annotated values when available (avoids N+1 queries)
+    liked = getattr(note, 'liked', False)
+    favorited = getattr(note, 'favorited', False)
+    comment_count = getattr(note, 'comment_count', note.comments.count())
 
     data = {
         'id': note.id,
@@ -38,10 +46,11 @@ def serialize_note(note, request, current_user=None, include_comments=False):
         'avatar': build_avatar_url(profile, request),
         'likes': note.likes,
         'liked': liked,
+        'favorited': favorited,
         'company': note.company,
         'position': note.position,
         'difficulty': note.difficulty,
-        'comment_count': note.comments.count(),
+        'comment_count': comment_count,
         'created_at': note.created_at.isoformat(),
         'updated_at': note.updated_at.isoformat(),
     }
