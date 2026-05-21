@@ -1,8 +1,10 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import NoteCard from './NoteCard.vue'
 import api from '@/js/http/api.js'
 
+const route = useRoute()
 const notes = ref([])
 const loading = ref(true)
 const errorMessage = ref('')
@@ -12,7 +14,11 @@ async function loadNotes() {
   errorMessage.value = ''
 
   try {
-    const response = await api.get('/api/notes/')
+    const response = await api.get('/api/notes/', {
+      params: {
+        search_query: route.query.q || '',
+      },
+    })
     notes.value = response.data.notes || []
   } catch (error) {
     errorMessage.value = error.response?.data?.message || '加载首页面经失败'
@@ -21,42 +27,51 @@ async function loadNotes() {
   }
 }
 
+function reset() {
+  notes.value = []
+  loading.value = false
+  errorMessage.value = ''
+  loadNotes()
+}
+
+watch(() => route.query.q, () => {
+  reset()
+})
+
 onMounted(() => {
   loadNotes()
 })
 </script>
 
 <template>
-  <div v-if="loading" class="p-4 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+  <div v-if="loading" class="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-9 mt-12 px-9">
     <div
       v-for="item in 8"
       :key="item"
-      class="h-72 rounded-2xl bg-gray-100 animate-pulse"
+      class="w-60 h-72 rounded-2xl bg-base-200 animate-pulse"
     ></div>
   </div>
 
-  <div v-else-if="errorMessage" class="p-6">
-    <div class="mx-auto max-w-2xl rounded-3xl border border-red-100 bg-red-50 p-6 text-sm text-red-500">
-      {{ errorMessage }}
+  <div v-else-if="errorMessage" class="mt-12 px-9">
+    <div class="alert alert-error">
+      <span>{{ errorMessage }}</span>
     </div>
   </div>
 
-  <div v-else-if="notes.length === 0" class="p-6">
-    <div class="mx-auto max-w-2xl rounded-3xl border border-gray-200 bg-white p-10 text-center shadow-sm">
-      <h2 class="text-xl font-semibold text-gray-900">还没有面经内容</h2>
-      <p class="mt-3 text-sm leading-6 text-gray-500">
-        当前首页只展示真实发布的面经。你可以先登录，然后去“发布面经”创建第一篇内容。
-      </p>
+  <div v-else-if="notes.length === 0" class="mt-12 px-9">
+    <div class="card bg-base-200 shadow-sm">
+      <div class="card-body text-center">
+        <h2 class="text-xl font-bold">
+          {{ route.query.q ? '没有找到相关面经' : '还没有面经内容' }}
+        </h2>
+        <p class="text-base-content/60">
+          {{ route.query.q ? '换个关键词试试吧' : '你可以先登录，然后去发布第一篇面经。' }}
+        </p>
+      </div>
     </div>
   </div>
 
-  <div v-else class="columns-2 gap-4 p-4 md:columns-3 lg:columns-4 xl:columns-5">
-    <div
-      v-for="note in notes"
-      :key="note.id"
-      class="break-inside-avoid mb-4"
-    >
-      <NoteCard :note="note" />
-    </div>
+  <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-9 mt-12 px-9 justify-items-center w-full">
+    <NoteCard v-for="note in notes" :key="note.id" :note="note" />
   </div>
 </template>

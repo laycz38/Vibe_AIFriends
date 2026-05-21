@@ -1,9 +1,9 @@
-﻿<script setup>
+<script setup>
 import FeedWaterfall from '../../components/FeedWaterfall.vue'
 </script>
 
 <template>
-  <section>
+  <div class="flex flex-col items-center mb-12">
     <FeedWaterfall />
-  </section>
+  </div>
 </template>

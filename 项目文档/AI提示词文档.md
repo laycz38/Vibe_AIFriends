@@ -566,6 +566,124 @@ Vite 配置固定端口 5173 + strictPort: true
 
 ---
 
+## 提示词十六：daisyUI 风格全局布局改造
+
+### 使用场景
+学习 acwing/AIFriends 项目的 daisyUI `drawer` + `navbar` 布局风格，全站改造。
+
+### 用户输入
+```
+学习 D:\acwing\AIFriends\aifriends 前端项目风格，按要求改造：
+- App.vue: Sidebar + Header → <NavBar><RouterView /></NavBar>
+- 新建 NavBar.vue: daisyUI drawer lg:drawer-open + navbar
+- 新建 6 个 SVG 图标组件（Menu/Homepage/Friend/Create/Star/Search）
+- FeedWaterfall.vue: CSS columns → grid-cols-[repeat(auto-fill,minmax(240px,1fr))]
+- NoteCard.vue: 240×288px 扁平卡片，hover scale-120，底部渐变遮罩
+- HomepageIndex.vue: flex flex-col items-center 居中容器
+```
+
+### 产出
+| 文件 | 说明 |
+|------|------|
+| `frontend/src/App.vue` | NavBar 包裹 RouterView |
+| `frontend/src/components/navbar/NavBar.vue` | daisyUI drawer+navbar 全局布局 |
+| `frontend/src/components/navbar/icons/*.vue` | 6个 SVG 图标组件 |
+| `frontend/src/components/FeedWaterfall.vue` | Grid auto-fill 卡片网格 |
+| `frontend/src/components/NoteCard.vue` | 240px 卡片 + hover scale-120 |
+| `frontend/src/views/homepage/HomepageIndex.vue` | 居中容器 |
+
+### 状态
+✅ 完成
+
+---
+
+## 提示词十七：面经搜索功能
+
+### 使用场景
+需要在 NavBar 搜索框中输入关键词，回车后跳转到 `/?q=xxx`，后端根据 query 参数过滤面经。
+
+### 用户输入
+```
+NavBar.vue:
+  searchQuery ref + v-model
+  handleSearch() → router.push({ name:'home', query:{ q } })
+  watch route.query.q 同步输入框
+  <form @submit.prevent> 包裹搜索框
+
+FeedWaterfall.vue:
+  useRoute() 读取 route.query.q
+  api.get('/api/notes/', { params: { search_query } })
+  watch route.query.q → reset() 重新加载
+
+后端 get_list.py:
+  from django.db.models import Q
+  search_query = request.GET.get('search_query')
+  Q(title__icontains) | Q(content__icontains) | Q(company__icontains) | Q(position__icontains)
+```
+
+### 产出
+| 文件 | 说明 |
+|------|------|
+| `frontend/src/components/navbar/NavBar.vue` | 搜索绑定 + handleSearch |
+| `frontend/src/components/FeedWaterfall.vue` | query 驱动加载 + watch 重载 |
+| `backend/web/views/note/get_list.py` | Q 多字段 icontains 过滤 |
+
+### 状态
+✅ 完成
+
+---
+
+## 提示词十八：面经详情页 acwing 风格重写
+
+### 使用场景
+详情页原本是双栏 + 大封面 + 自定义卡片风格，需要改为 acwing/daisyUI 风格。
+
+### 用户输入
+```
+重写 NoteDetailIndex.vue:
+- 布局：单列居中 max-w-180
+- 卡片：daisyUI card bg-base-200 shadow-sm
+- 标签：badge badge-neutral / badge-warning / badge-ghost
+- 评论：daisyUI chat chat-start + chat-bubble 气泡
+- 点赞：btn btn-ghost，已点赞变 text-error
+- 时间：相对时间（"3小时前"）
+- 返回：btn btn-ghost
+```
+
+### 产出
+| 文件 | 说明 |
+|------|------|
+| `frontend/src/views/note/NoteDetailIndex.vue` | 完全重写为 daisyUI 风格 |
+
+### 状态
+✅ 完成
+
+---
+
+## 提示词十九：清空数据 + 默认封面
+
+### 使用场景
+清空所有面经测试数据，设置默认封面图片替代渐变占位。
+
+### 用户输入
+```
+清空数据库中所有 InterviewNote / InterviewNoteLike / InterviewNoteComment
+NoteCard.vue: 删除 v-if/v-else 图片占位 → :src="note.image || DEFAULT_COVER"
+NoteDetailIndex.vue: 同样使用默认封面
+默认封面: https://picsum.photos/seed/tech_office/800/600
+```
+
+### 产出
+| 文件 | 说明 |
+|------|------|
+| `frontend/src/components/NoteCard.vue` | 默认封面 fallback |
+| `frontend/src/views/note/NoteDetailIndex.vue` | 默认封面 fallback |
+
+### 状态
+✅ 完成
+
+---
+
 ## 提示词模板：前端新页面 / 新功能
 
 ```
@@ -651,6 +769,10 @@ API 接口：
 | 13 | 2026-05-20 | 用户头像 + 资料 | ✅ | UserMenu + ProfileIndex |
 | 14 | 2026-05-20 | Django托管 + 同源修复 | ✅ | SPA fallback + api.js DEV判断 |
 | 15 | 2026-05-20 | 左侧栏伸缩布局 | 🔧 | App.vue完成，Header/Sidebar对接中 |
+| 16 | 2026-05-20 | daisyUI 全局布局改造 | ✅ | drawer+navbar + 6个SVG图标 + Grid网格 |
+| 17 | 2026-05-20 | 面经搜索功能 | ✅ | Q多字段icontains + URL query驱动 |
+| 18 | 2026-05-20 | 详情页daisyUI重写 | ✅ | card+chat-bubble+badge+相对时间 |
+| 19 | 2026-05-20 | 清空数据+默认封面 | ✅ | picsum.tech_office + fallback
 
 ---
 
