@@ -26,6 +26,8 @@ def synthesize_speech(request):
             'format': 'mp3',
         })
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return Response({
             'result': 'error',
             'message': f'语音合成失败: {str(e)}',

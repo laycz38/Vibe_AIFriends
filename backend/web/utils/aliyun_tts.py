@@ -24,7 +24,7 @@ def synthesize(text, voice='female'):
             'text': text,
             'voice': voice_name,
             'format': 'mp3',
-            'sample_rate': 24000,
+            'sample_rate': 22050,
         },
     }).encode('utf-8')
 
