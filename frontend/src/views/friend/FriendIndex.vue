@@ -401,6 +401,12 @@ function handleMicSend(_event, text) {
   }
 }
 
+function handleMicError(msg) {
+  showMic.value = false
+  showTtsError.value = msg || '麦克风初始化失败'
+  setTimeout(() => { showTtsError.value = '' }, 5000)
+}
+
 function handleMicStop() {
   // Stop TTS playback when user starts speaking
   if (streamAbortRef.value) {
@@ -787,6 +793,7 @@ onBeforeUnmount(() => {
           @close="showMic = false"
           @send="handleMicSend"
           @stop="handleMicStop"
+          @error="handleMicError"
         />
       </div>
     </div>

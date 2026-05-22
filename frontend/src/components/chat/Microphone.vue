@@ -4,8 +4,10 @@ import { MicVAD } from '@ricky0123/vad-web'
 import api from '@/js/http/api.js'
 import KeyboardIcon from '@/components/icons/KeyboardIcon.vue'
 
-const emit = defineEmits(['close', 'send', 'stop'])
+const emit = defineEmits(['close', 'send', 'stop', 'error'])
 const isSpeaking = ref(false)
+const initError = ref('')
+const loading = ref(true)
 
 let vadInstance = null
 
@@ -15,20 +17,30 @@ const VAD_BASE = import.meta.env.DEV
 
 const startRecording = async () => {
   try {
+    console.log('[VAD] Initializing with base path:', VAD_BASE)
+
     vadInstance = await MicVAD.new({
+      model: 'v5',
       baseAssetPath: VAD_BASE,
+      onnxWASMBasePath: VAD_BASE,
       onSpeechStart: () => {
+        console.log('[VAD] Speech started')
         isSpeaking.value = true
         emit('stop')
       },
       onSpeechEnd: (audio) => {
+        console.log('[VAD] Speech ended, audio samples:', audio.length)
         isSpeaking.value = false
         const pcm16 = float32ToInt16(audio)
         sendToBackend(pcm16)
       },
+      onVADMisfire: () => {
+        console.log('[VAD] Misfire')
+        isSpeaking.value = false
+      },
       ortConfig: (ort) => {
         ort.env.wasm.wasmPaths = VAD_BASE
-        ort.env.logLevel = 'error'
+        ort.env.logLevel = 'verbose'
       },
       positiveSpeechThreshold: 0.8,
       negativeSpeechThreshold: 0.65,
@@ -36,9 +48,23 @@ const startRecording = async () => {
       redemptionFrames: 5,
     })
 
+    loading.value = false
     await vadInstance.start()
+    console.log('[VAD] Started successfully')
   } catch (e) {
-    console.error('VAD 初始化失败:', e)
+    loading.value = false
+    const msg = e.message || String(e)
+    console.error('[VAD] Init failed:', msg)
+    initError.value = msg
+
+    if (msg.includes('NotAllowedError') || msg.includes('Permission')) {
+      initError.value = '请允许麦克风权限后重试'
+    } else if (msg.includes('fetch') || msg.includes('NetworkError') || msg.includes('Failed to fetch')) {
+      initError.value = '语音模型加载失败，请检查网络连接'
+    } else if (msg.includes('model') || msg.includes('onnx')) {
+      initError.value = '语音模型文件缺失，请刷新页面重试'
+    }
+    emit('error', initError.value)
   }
 }
 
@@ -61,9 +87,12 @@ const sendToBackend = async (arrayBuffer) => {
     const data = res.data
     if (data.result === 'success' && data.text) {
       emit('send', null, data.text)
+    } else {
+      console.error('[ASR] Unexpected response:', data)
     }
   } catch (err) {
-    console.error('ASR 请求失败:', err)
+    console.error('[ASR] Request failed:', err)
+    emit('error', '语音识别请求失败')
   }
 }
 
@@ -81,17 +110,27 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="absolute bottom-0 left-0 right-0 h-12 flex items-center bg-base-200 rounded-box mx-2 mb-2">
-    <div v-if="isSpeaking" class="flex items-center justify-center gap-0.5 h-6 flex-1 px-4">
+    <!-- Error state -->
+    <div v-if="initError" class="text-error text-xs w-full text-center px-2">
+      {{ initError }}
+    </div>
+    <!-- Loading state -->
+    <div v-else-if="loading" class="text-base-content/50 text-sm w-full text-center">
+      正在初始化语音模型...
+    </div>
+    <!-- Speaking state: waveform animation -->
+    <div v-else-if="isSpeaking" class="flex items-center justify-center gap-0.5 h-6 flex-1 px-4">
       <div
         v-for="i in 32" :key="i"
         class="w-0.5 bg-primary rounded-full animate-wave"
         :style="{ animationDelay: `${i * 0.1}s` }"
       ></div>
     </div>
+    <!-- Listening state -->
     <div v-else class="text-base-content/50 text-sm w-full text-center">
       正在聆听...
     </div>
-    <button class="btn btn-ghost btn-xs mr-1" @click="emit('close')">
+    <button v-if="!loading" class="btn btn-ghost btn-xs mr-1" @click="emit('close')">
       <KeyboardIcon />
     </button>
   </div>
