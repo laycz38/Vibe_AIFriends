@@ -21,7 +21,7 @@ const voiceGender = ref(localStorage.getItem('tts_gender') || 'female')
 const showSaveToast = ref(false)
 const showCleanWarning = ref(false)
 const cleanDismissed = ref(false)
-const showTtsError = ref(false)
+const showTtsError = ref('') // error message, falsy when ok
 const ttsFallbackUsed = ref(false) // brief toast when CosyVoice falls back
 
 // -- computed --
@@ -129,13 +129,16 @@ function speak(index, text) {
     .then(({ data }) => {
       if (data.result !== 'success' || !data.audio) {
         // Aliyun failed (no key or API error), fall back to SpeechSynthesis
-        console.warn('CosyVoice TTS 不可用:', data.message || 'no audio')
+        const errMsg = data.message || 'no audio'
+        console.warn('CosyVoice TTS 不可用:', errMsg)
+        showTtsError.value = errMsg
+        setTimeout(() => { showTtsError.value = '' }, 5000)
         ttsFallbackUsed.value = true
         setTimeout(() => { ttsFallbackUsed.value = false }, 3000)
         if (!speakFallback(index, text)) {
           speakingIndex.value = -1
-          showTtsError.value = true
-          setTimeout(() => { showTtsError.value = false }, 4000)
+          showTtsError.value = '浏览器语音也不可用'
+          setTimeout(() => { showTtsError.value = '' }, 4000)
         }
         return
       }
@@ -161,12 +164,12 @@ function speak(index, text) {
     })
     .catch((err) => {
       console.warn('CosyVoice TTS 请求失败:', err)
+      showTtsError.value = err.response?.data?.message || err.message
+      setTimeout(() => { showTtsError.value = '' }, 5000)
       ttsFallbackUsed.value = true
       setTimeout(() => { ttsFallbackUsed.value = false }, 3000)
       if (!speakFallback(index, text)) {
         speakingIndex.value = -1
-        showTtsError.value = true
-        setTimeout(() => { showTtsError.value = false }, 4000)
       }
     })
 }
@@ -515,8 +518,8 @@ onBeforeUnmount(() => {
       </div>
       <!-- TTS error toast -->
       <div v-if="showTtsError" class="toast toast-end">
-        <div class="alert alert-warning text-sm py-1">
-          语音朗读不可用：请配置 DASHSCOPE_API_KEY 或使用支持语音的浏览器
+        <div class="alert alert-warning text-sm py-1 max-w-sm break-words">
+          CosyVoice 失败: {{ showTtsError }}
         </div>
       </div>
     </div>

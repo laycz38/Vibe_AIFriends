@@ -28,7 +28,11 @@ def synthesize_speech(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
+        detail = str(e)
+        # Check if API key is missing
+        if 'DASHSCOPE_API_KEY' in detail:
+            detail = 'DASHSCOPE_API_KEY 环境变量未配置，请在 backend/.env 中设置'
         return Response({
             'result': 'error',
-            'message': f'语音合成失败: {str(e)}',
+            'message': detail,
         }, status=500)
