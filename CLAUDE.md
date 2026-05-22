@@ -47,12 +47,13 @@ Images are stored as **base64 strings in TextField columns**, not as file upload
 - API response envelope: `{'result': 'success', ...}` or `{'result': 'error', 'message': '...'}`
 - Auth: `AllowAny` for public endpoints, `IsAuthenticated` for protected ones
 
-**TTS (语音合成)** — Aliyun NLS (智能语音交互) service replaces browser SpeechSynthesis:
-- `utils/aliyun_tts.py` — token management (`_get_token`, in-memory cache) + `synthesize()` calling Aliyun REST API
+**TTS (语音合成)** — Aliyun DashScope CosyVoice (通义实验室生成式语音大模型) replaces browser SpeechSynthesis:
+- `utils/aliyun_tts.py` — `synthesize()` calls DashScope CosyVoice REST API directly
 - `views/tts/synthesize.py` — `POST /api/tts/synthesize/`, accepts `{text, voice}`, returns `{audio: base64, format: 'mp3'}`
-- Voices: `ailun` (female/warm) and `aicheng` (male/mature), configurable via `VOICE_MAP`
-- Env vars: `ALIYUN_NLS_ACCESS_KEY_ID`, `ALIYUN_NLS_ACCESS_KEY_SECRET`, `ALIYUN_NLS_APPKEY`
+- Voices: `longanhuan` (female, 龙安欢) and `longanyang` (male, 龙安洋), configurable via `VOICE_MAP`
+- Env var: `DASHSCOPE_API_KEY` (sk- prefix)
 - Frontend sends text to backend, receives base64 MP3, plays via `HTMLAudioElement`
+- Fallback: when API unavailable, falls back to browser `SpeechSynthesis`
 
 **URL routing** — all routes in `web/urls.py` (not project-level). The last two patterns handle SPA fallback: `path('', index)` for `/` and `re_path(r'^(?!media/|static/|assets/).*$', index)` for all other frontend routes. Static/media files are only served by Django in DEBUG mode; in production Nginx handles them.
 

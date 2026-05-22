@@ -21,7 +21,7 @@ const voiceGender = ref(localStorage.getItem('tts_gender') || 'female')
 const showSaveToast = ref(false)
 const showCleanWarning = ref(false)
 const cleanDismissed = ref(false)
-const ttsLoading = ref(false) // loading state for TTS requests
+const showTtsError = ref(false)
 
 // -- computed --
 const interviewNoteId = computed(() => {
@@ -82,6 +82,24 @@ function base64ToBlob(b64, mime) {
   return new Blob([buf], { type: mime })
 }
 
+// Browser SpeechSynthesis fallback (used when Aliyun TTS is unavailable)
+function speakFallback(index, text) {
+  if (typeof speechSynthesis === 'undefined') return false
+  try {
+    speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'zh-CN'
+    utterance.rate = 0.88
+    utterance.pitch = 1.05
+    utterance.onend = () => { speakingIndex.value = -1 }
+    utterance.onerror = () => { speakingIndex.value = -1 }
+    speechSynthesis.speak(utterance)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function speak(index, text) {
   // Toggle off if clicking the same message
   if (speakingIndex.value === index && currentAudio.value) {
@@ -96,20 +114,25 @@ function speak(index, text) {
     currentAudio.value.pause()
     currentAudio.value = null
   }
+  speechSynthesis.cancel()
   speakingIndex.value = -1
 
   speakingIndex.value = index
-  ttsLoading.value = true
 
+  // Try Aliyun TTS first
   api
     .post('/api/tts/synthesize/', {
       text,
       voice: voiceGender.value,
     })
     .then(({ data }) => {
-      ttsLoading.value = false
       if (data.result !== 'success' || !data.audio) {
-        speakingIndex.value = -1
+        // Aliyun failed, fall back to SpeechSynthesis
+        if (!speakFallback(index, text)) {
+          speakingIndex.value = -1
+          showTtsError.value = true
+          setTimeout(() => { showTtsError.value = false }, 4000)
+        }
         return
       }
       const blob = base64ToBlob(data.audio, 'audio/mp3')
@@ -133,8 +156,12 @@ function speak(index, text) {
       })
     })
     .catch(() => {
-      ttsLoading.value = false
-      speakingIndex.value = -1
+      // Network error, fall back to SpeechSynthesis
+      if (!speakFallback(index, text)) {
+        speakingIndex.value = -1
+        showTtsError.value = true
+        setTimeout(() => { showTtsError.value = false }, 4000)
+      }
     })
 }
 
@@ -267,6 +294,7 @@ function clearConversation() {
     currentAudio.value.pause()
     currentAudio.value = null
   }
+  if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
   speakingIndex.value = -1
 }
 
@@ -374,6 +402,7 @@ onBeforeUnmount(() => {
     currentAudio.value.pause()
     currentAudio.value = null
   }
+  if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
 })
 </script>
 
@@ -471,6 +500,12 @@ onBeforeUnmount(() => {
       <!-- Save toast -->
       <div v-if="showSaveToast" class="toast toast-end">
         <div class="alert alert-success text-sm py-1">已保存记录</div>
+      </div>
+      <!-- TTS error toast -->
+      <div v-if="showTtsError" class="toast toast-end">
+        <div class="alert alert-warning text-sm py-1">
+          语音朗读不可用：请配置阿里云 TTS Key 或使用支持语音的浏览器
+        </div>
       </div>
     </div>
 

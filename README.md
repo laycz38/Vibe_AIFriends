@@ -20,7 +20,7 @@
 | | Gunicorn | 23.x | 生产 WSGI 服务器 |
 | | Pillow | - | 图片处理（Base64 压缩/转码） |
 | **AI** | DeepSeek API | - | 智能对话 + 模拟面试 |
-| | 阿里云 NLS TTS | - | 语音合成（ailun / aicheng 精品音色） |
+| | 阿里云百炼 CosyVoice | - | 生成式语音合成（longanhuan / longanyang） |
 | **前端** | Vue | 3.5.32 | UI 框架 |
 | | Vite | 8.0.13 | 构建 + 开发服务器 |
 | | Tailwind CSS | 4.3.0 | 原子化 CSS |
@@ -111,7 +111,7 @@ cd ../backend                         # 生产用 Gunicorn + Nginx
 | 生产环境变量配置 | ✅ | `settings.py` 读取 `DJANGO_DEBUG` / `DJANGO_SECRET_KEY` |
 | Nginx + Gunicorn 部署 | ✅ | `app6809.acapp.acwing.com.cn` |
 | 一键部署脚本 | ✅ | `deploy.py`（构建+上传+迁移+重启） |
-| 阿里云 TTS 语音朗读 | ✅ | 精品音色（ailun 女声 / aicheng 男声），替换浏览器原生 SpeechSynthesis |
+| CosyVoice AI 语音朗读 | ✅ | 生成式语音大模型（longanhuan 女声 / longanyang 男声），替换浏览器原生 SpeechSynthesis |
 | Git 版本管理 | ✅ | GitHub: `laycz38/Vibe_AIFriends` |
 
 ---
@@ -242,15 +242,13 @@ DJANGO_DEBUG=True
 DEEPSEEK_API_KEY=sk-your-key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 
-# 阿里云 NLS TTS（语音朗读，可选）
-# 开通：https://nls.aliyun.com/ → 智能语音交互 → 创建项目
-ALIYUN_NLS_ACCESS_KEY_ID=
-ALIYUN_NLS_ACCESS_KEY_SECRET=
-ALIYUN_NLS_APPKEY=
+# 阿里云百炼 CosyVoice TTS（语音朗读，可选）
+# API Key 在 https://bailian.console.aliyun.com/ → 模型广场 → API-KEY 管理 获取
+DASHSCOPE_API_KEY=sk-
 ```
 
-> 阿里云 TTS 为可选功能。若不配置，前端朗读按钮将不可用。
-> 开通后默认使用精品音色 `ailun`（温暖女声）和 `aicheng`（成熟男声），标准音色为 `xiaoyun` / `xiaogang`。
+> CosyVoice 为可选功能。若不配置，会自动回退到浏览器原生语音合成。
+> 默认音色：`longanhuan`（龙安欢，元气女声）和 `longanyang`（龙安洋，阳光男声）。
 
 ---
 
