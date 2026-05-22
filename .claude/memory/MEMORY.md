@@ -1,0 +1,1 @@
+- [Conda 虚拟环境路径](project_conda_env.md) — vibe_AIFriends 环境的 conda 路径和 pip 安装方式

@@ -5,7 +5,7 @@
 > 已部署：**[app6809.acapp.acwing.com.cn](https://app6809.acapp.acwing.com.cn)**（Ubuntu 24.04 + Nginx + Gunicorn）
 
 > GitHub：[laycz38/Vibe_AIFriends](https://github.com/laycz38/Vibe_AIFriends)  
-> 最后更新：2026-05-21
+> 最后更新：2026-05-22
 
 ---
 
@@ -20,7 +20,7 @@
 | | Gunicorn | 23.x | 生产 WSGI 服务器 |
 | | Pillow | - | 图片处理（Base64 压缩/转码） |
 | **AI** | DeepSeek API | - | 智能对话 + 模拟面试 |
-| | 阿里云百炼 CosyVoice | - | 生成式语音合成（longanhuan / longanyang） |
+| | 阿里云百炼 CosyVoice | dashscope SDK 1.25 | WebSocket 流式语音合成（longanhuan / longanyang） |
 | **前端** | Vue | 3.5.32 | UI 框架 |
 | | Vite | 8.0.13 | 构建 + 开发服务器 |
 | | Tailwind CSS | 4.3.0 | 原子化 CSS |
@@ -141,9 +141,9 @@ AIFriends/
 │       │   ├── note/            # get_list / get_detail / create / toggle_like / toggle_favorite / favorite_list / create_comment
 │       │   ├── chat/            # send_message / interview / sessions
 │       │   ├── user/account/    # login / register / logout / refresh / info / update_profile
-│       │   └── tts/             # synthesize（阿里云 NLS TTS）
+│       │   └── tts/             # synthesize（阿里云百炼 CosyVoice）
 │       ├── utils/
-│       │   └── aliyun_tts.py    # TTS Token 管理 + 语音合成
+│       │   └── aliyun_tts.py    # 百炼 CosyVoice WebSocket SDK 语音合成
 │       └── migrations/          # 8个迁移
 │
 ├── frontend/                    # Vue 3 前端

@@ -48,7 +48,7 @@ Images are stored as **base64 strings in TextField columns**, not as file upload
 - Auth: `AllowAny` for public endpoints, `IsAuthenticated` for protected ones
 
 **TTS (语音合成)** — Aliyun DashScope CosyVoice (通义实验室生成式语音大模型) replaces browser SpeechSynthesis:
-- `utils/aliyun_tts.py` — `synthesize()` calls DashScope CosyVoice REST API directly
+- `utils/aliyun_tts.py` — `synthesize()` uses `dashscope` Python SDK (internal WebSocket, no OSS URL indirection)
 - `views/tts/synthesize.py` — `POST /api/tts/synthesize/`, accepts `{text, voice}`, returns `{audio: base64, format: 'mp3'}`
 - Voices: `longanhuan` (female, 龙安欢) and `longanyang` (male, 龙安洋), configurable via `VOICE_MAP`
 - Env var: `DASHSCOPE_API_KEY` (sk- prefix)
