@@ -133,7 +133,7 @@ AIFriends/
 │   │   └── urls.py              # 根路由
 │   └── web/
 │       ├── models.py            # UserProfile / InterviewNote / Like / Favorite / Comment
-│       ├── urls.py              # 17条 API 路由 + SPA fallback
+│       ├── urls.py              # 18条 API 路由 + SPA fallback
 │       ├── admin.py             # 5个模型后台注册
 │       ├── views/
 │       │   ├── index.py         # SPA fallback
@@ -141,9 +141,9 @@ AIFriends/
 │       │   ├── note/            # get_list / get_detail / create / toggle_like / toggle_favorite / favorite_list / create_comment
 │       │   ├── chat/            # send_message / interview / sessions
 │       │   ├── user/account/    # login / register / logout / refresh / info / update_profile
-│       │   └── tts/             # synthesize（阿里云百炼 CosyVoice）
+│       │   └── tts/             # synthesize（非流式）+ stream（流式，首包 0.5s）
 │       ├── utils/
-│       │   └── aliyun_tts.py    # 百炼 CosyVoice WebSocket SDK 语音合成
+│       │   └── aliyun_tts.py    # CosyVoice SDK + 流式回调 synthesize_stream()
 │       └── migrations/          # 8个迁移
 │
 ├── frontend/                    # Vue 3 前端
@@ -199,7 +199,8 @@ AIFriends/
 |------|------|------|------|
 | POST | `/api/chat/send/` | JWT | DeepSeek 自由对话 |
 | POST | `/api/chat/interview/` | JWT | DeepSeek 模拟面试（基于面经） |
-| POST | `/api/tts/synthesize/` | JWT | 阿里云 TTS 语音合成，返回 base64 MP3 |
+| POST | `/api/tts/synthesize/` | JWT | CosyVoice 语音合成，返回 base64 MP3 |
+| POST | `/api/tts/stream/` | JWT | CosyVoice 流式合成（audio/mpeg stream，首包 ~0.5s） |
 
 ### 面经
 | 方法 | 路径 | 认证 | 说明 |

@@ -48,12 +48,13 @@ Images are stored as **base64 strings in TextField columns**, not as file upload
 - Auth: `AllowAny` for public endpoints, `IsAuthenticated` for protected ones
 
 **TTS (语音合成)** — Aliyun DashScope CosyVoice (通义实验室生成式语音大模型) replaces browser SpeechSynthesis:
-- `utils/aliyun_tts.py` — `synthesize()` uses `dashscope` Python SDK (internal WebSocket, no OSS URL indirection)
-- `views/tts/synthesize.py` — `POST /api/tts/synthesize/`, accepts `{text, voice}`, returns `{audio: base64, format: 'mp3'}`
+- `utils/aliyun_tts.py` — `synthesize()` returns full audio via SDK; `synthesize_stream()` yields chunks via `ResultCallback`
+- `views/tts/synthesize.py` — `POST /api/tts/synthesize/`, returns `{audio: base64, format: 'mp3'}`
+- `views/tts/stream.py` — `POST /api/tts/stream/`, returns `Content-Type: audio/mpeg` streaming response (首包 ~0.5s)
+- Frontend uses `MediaSource` API for progressive playback: first chunk plays immediately, rest streams in
 - Voices: `longanhuan` (female, 龙安欢) and `longanyang` (male, 龙安洋), configurable via `VOICE_MAP`
 - Env var: `DASHSCOPE_API_KEY` (sk- prefix)
-- Frontend sends text to backend, receives base64 MP3, plays via `HTMLAudioElement`
-- Fallback: when API unavailable, falls back to browser `SpeechSynthesis`
+- Fallback chain: streaming → non-streaming SDK → browser `SpeechSynthesis`
 
 **URL routing** — all routes in `web/urls.py` (not project-level). The last two patterns handle SPA fallback: `path('', index)` for `/` and `re_path(r'^(?!media/|static/|assets/).*$', index)` for all other frontend routes. Static/media files are only served by Django in DEBUG mode; in production Nginx handles them.
 

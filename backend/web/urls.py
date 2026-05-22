@@ -21,6 +21,7 @@ from web.views.chat.send_message import send_message
 from web.views.chat.interview import interview
 from web.views.chat.sessions import list_sessions, get_session, save_session, delete_session
 from web.views.tts.synthesize import synthesize_speech
+from web.views.tts.stream import synthesize_stream_view
 
 urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -45,6 +46,7 @@ urlpatterns = [
     path('api/chat/sessions/<int:session_id>/', get_session, name='chat_sessions_detail'),
     path('api/chat/sessions/<int:session_id>/delete/', delete_session, name='chat_sessions_delete'),
     path('api/tts/synthesize/', synthesize_speech, name='tts_synthesize'),
+    path('api/tts/stream/', synthesize_stream_view, name='tts_stream'),
     path('', index, name='index'),
     re_path(r'^(?!media/|static/|assets/).*$', index, name='frontend_fallback'),
 ]

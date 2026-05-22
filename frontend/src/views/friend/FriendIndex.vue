@@ -2,9 +2,13 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/js/http/api.js'
+import { useUserStore } from '@/stores/user.js'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
+
+const BASE_URL = import.meta.env.DEV ? 'http://127.0.0.1:8000' : ''
 
 // -- state --
 const messages = ref([])
@@ -73,15 +77,10 @@ function setGender(gender) {
   localStorage.setItem('tts_gender', gender)
 }
 
-// Base64 → Blob → play audio via Aliyun TTS
-function base64ToBlob(b64, mime) {
-  const byteChars = atob(b64)
-  const len = byteChars.length
-  const buf = new ArrayBuffer(len)
-  const view = new Uint8Array(buf)
-  for (let i = 0; i < len; i++) view[i] = byteChars.charCodeAt(i)
-  return new Blob([buf], { type: mime })
-}
+// MediaSource refs for streaming playback
+const mediaSourceRef = ref(null)
+const sourceBufferRef = ref(null)
+const streamAbortRef = ref(null)
 
 // Browser SpeechSynthesis fallback (used when Aliyun TTS is unavailable)
 function speakFallback(index, text) {
@@ -101,7 +100,7 @@ function speakFallback(index, text) {
   }
 }
 
-function speak(index, text) {
+async function speak(index, text) {
   // Toggle off if clicking the same message
   if (speakingIndex.value === index && currentAudio.value) {
     currentAudio.value.pause()
@@ -115,63 +114,164 @@ function speak(index, text) {
     currentAudio.value.pause()
     currentAudio.value = null
   }
+  if (streamAbortRef.value) {
+    streamAbortRef.value.abort()
+    streamAbortRef.value = null
+  }
   speechSynthesis.cancel()
   speakingIndex.value = -1
 
   speakingIndex.value = index
 
-  // Try Aliyun TTS first
-  api
-    .post('/api/tts/synthesize/', {
-      text,
-      voice: voiceGender.value,
-    }, { timeout: 30000 })
-    .then(({ data }) => {
-      if (data.result !== 'success' || !data.audio) {
-        // Aliyun failed (no key or API error), fall back to SpeechSynthesis
-        const errMsg = data.message || 'no audio'
-        console.warn('CosyVoice TTS 不可用:', errMsg)
-        showTtsError.value = errMsg
-        setTimeout(() => { showTtsError.value = '' }, 5000)
-        ttsFallbackUsed.value = true
-        setTimeout(() => { ttsFallbackUsed.value = false }, 3000)
-        if (!speakFallback(index, text)) {
-          speakingIndex.value = -1
-          showTtsError.value = '浏览器语音也不可用'
-          setTimeout(() => { showTtsError.value = '' }, 4000)
+  // Try streaming TTS via MediaSource (first chunk plays in ~0.5s)
+  try {
+    const abortController = new AbortController()
+    streamAbortRef.value = abortController
+
+    const resp = await fetch(`${BASE_URL}/api/tts/stream/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userStore.accessToken}`,
+      },
+      body: JSON.stringify({ text, voice: voiceGender.value }),
+      signal: abortController.signal,
+    })
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}))
+      throw new Error(errData.message || `HTTP ${resp.status}`)
+    }
+
+    // Setup MediaSource for progressive MP3 playback
+    const ms = new MediaSource()
+    mediaSourceRef.value = ms
+    const audioUrl = URL.createObjectURL(ms)
+    const audio = new Audio(audioUrl)
+    currentAudio.value = audio
+
+    const chunks = []
+    let sourceBuffer = null
+    let msClosed = false
+
+    const cleanup = () => {
+      if (!msClosed) {
+        msClosed = true
+        try { URL.revokeObjectURL(audioUrl) } catch {}
+      }
+      speakingIndex.value = -1
+      currentAudio.value = null
+      streamAbortRef.value = null
+    }
+
+    audio.onended = cleanup
+    audio.onerror = cleanup
+
+    await new Promise((resolve, reject) => {
+      ms.addEventListener('sourceopen', () => {
+        try {
+          sourceBuffer = ms.addSourceBuffer('audio/mpeg')
+          sourceBuffer.mode = 'sequence'
+
+          sourceBuffer.addEventListener('updateend', () => {
+            if (chunks.length > 0 && !sourceBuffer.updating) {
+              sourceBuffer.appendBuffer(chunks.shift())
+            }
+          })
+
+          // Append any chunk that arrived before sourceopen
+          if (chunks.length > 0 && !sourceBuffer.updating) {
+            sourceBuffer.appendBuffer(chunks.shift())
+          }
+        } catch (e) {
+          reject(e)
         }
+      })
+
+      // Read stream chunks
+      const reader = resp.body.getReader()
+      function pushChunk(data) {
+        chunks.push(data)
+        if (sourceBuffer && !sourceBuffer.updating) {
+          sourceBuffer.appendBuffer(chunks.shift())
+        }
+        // Start playing as soon as first chunk is buffered
+        if (audio.paused && audio.readyState < 2) {
+          audio.play().catch(() => {})
+        }
+      }
+
+      function readLoop() {
+        reader.read().then(({ done, value }) => {
+          if (done) {
+            if (sourceBuffer && !sourceBuffer.updating && ms.readyState === 'open') {
+              try { ms.endOfStream() } catch {}
+            }
+            resolve()
+            return
+          }
+          pushChunk(value)
+          readLoop()
+        }).catch((err) => {
+          if (err.name === 'AbortError') { resolve(); return }
+          reject(err)
+        })
+      }
+      readLoop()
+    })
+  } catch (err) {
+    if (err.name === 'AbortError') return
+
+    console.warn('CosyVoice stream 失败，回退非流式:', err)
+
+    // Fallback 1: non-streaming TTS endpoint (still SDK-based, faster than REST)
+    try {
+      const { data } = await api.post('/api/tts/synthesize/', {
+        text,
+        voice: voiceGender.value,
+      }, { timeout: 30000 })
+
+      if (data.result === 'success' && data.audio) {
+        const byteChars = atob(data.audio)
+        const len = byteChars.length
+        const buf = new ArrayBuffer(len)
+        const view = new Uint8Array(buf)
+        for (let i = 0; i < len; i++) view[i] = byteChars.charCodeAt(i)
+        const blob = new Blob([buf], { type: 'audio/mp3' })
+        const url = URL.createObjectURL(blob)
+        const audio = new Audio(url)
+        currentAudio.value = audio
+        audio.onended = () => {
+          speakingIndex.value = -1
+          currentAudio.value = null
+          URL.revokeObjectURL(url)
+        }
+        audio.onerror = () => {
+          speakingIndex.value = -1
+          currentAudio.value = null
+          URL.revokeObjectURL(url)
+        }
+        audio.play().catch(() => {
+          speakingIndex.value = -1
+          currentAudio.value = null
+          URL.revokeObjectURL(url)
+        })
         return
       }
-      const blob = base64ToBlob(data.audio, 'audio/mp3')
-      const url = URL.createObjectURL(blob)
-      const audio = new Audio(url)
-      currentAudio.value = audio
-      audio.onended = () => {
-        speakingIndex.value = -1
-        currentAudio.value = null
-        URL.revokeObjectURL(url)
-      }
-      audio.onerror = () => {
-        speakingIndex.value = -1
-        currentAudio.value = null
-        URL.revokeObjectURL(url)
-      }
-      audio.play().catch(() => {
-        speakingIndex.value = -1
-        currentAudio.value = null
-        URL.revokeObjectURL(url)
-      })
-    })
-    .catch((err) => {
-      console.warn('CosyVoice TTS 请求失败:', err)
-      showTtsError.value = err.response?.data?.message || err.message
+      throw new Error(data.message || 'no audio')
+    } catch (err2) {
+      console.warn('CosyVoice 非流式也失败:', err2)
+      showTtsError.value = err2.message
       setTimeout(() => { showTtsError.value = '' }, 5000)
       ttsFallbackUsed.value = true
       setTimeout(() => { ttsFallbackUsed.value = false }, 3000)
       if (!speakFallback(index, text)) {
         speakingIndex.value = -1
+        showTtsError.value = '浏览器语音也不可用'
+        setTimeout(() => { showTtsError.value = '' }, 4000)
       }
-    })
+    }
+  }
 }
 
 // -- localStorage draft --
@@ -299,6 +399,10 @@ function clearConversation() {
   localStorage.removeItem('chat_session_id')
   cleanDismissed.value = false
   showCleanWarning.value = false
+  if (streamAbortRef.value) {
+    streamAbortRef.value.abort()
+    streamAbortRef.value = null
+  }
   if (currentAudio.value) {
     currentAudio.value.pause()
     currentAudio.value = null
@@ -407,6 +511,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (streamAbortRef.value) {
+    streamAbortRef.value.abort()
+    streamAbortRef.value = null
+  }
   if (currentAudio.value) {
     currentAudio.value.pause()
     currentAudio.value = null
