@@ -1,3 +1,4 @@
+import base64
 import json
 import urllib.request
 import urllib.error
@@ -38,7 +39,16 @@ def synthesize(text, voice='female'):
 
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            return resp.read()
+            body = resp.read()
+            ct = resp.headers.get('Content-Type', '')
+            if 'json' in ct:
+                # JSON response: extract audio from output field
+                data = json.loads(body.decode('utf-8'))
+                audio_b64 = data.get('output', {}).get('audio')
+                if audio_b64:
+                    return base64.b64decode(audio_b64)
+                raise Exception(f'CosyVoice 返回 JSON 但无音频: {data}')
+            return body
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8') if e.fp else ''
-        raise Exception(f'CosyVoice TTS API 错误 ({e.code}): {error_body}')
+        raise Exception(f'CosyVoice API 错误 ({e.code}): {error_body}')

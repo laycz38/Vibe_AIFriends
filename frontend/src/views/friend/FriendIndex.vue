@@ -22,6 +22,7 @@ const showSaveToast = ref(false)
 const showCleanWarning = ref(false)
 const cleanDismissed = ref(false)
 const showTtsError = ref(false)
+const ttsFallbackUsed = ref(false) // brief toast when CosyVoice falls back
 
 // -- computed --
 const interviewNoteId = computed(() => {
@@ -127,7 +128,10 @@ function speak(index, text) {
     })
     .then(({ data }) => {
       if (data.result !== 'success' || !data.audio) {
-        // Aliyun failed, fall back to SpeechSynthesis
+        // Aliyun failed (no key or API error), fall back to SpeechSynthesis
+        console.warn('CosyVoice TTS 不可用:', data.message || 'no audio')
+        ttsFallbackUsed.value = true
+        setTimeout(() => { ttsFallbackUsed.value = false }, 3000)
         if (!speakFallback(index, text)) {
           speakingIndex.value = -1
           showTtsError.value = true
@@ -155,8 +159,10 @@ function speak(index, text) {
         URL.revokeObjectURL(url)
       })
     })
-    .catch(() => {
-      // Network error, fall back to SpeechSynthesis
+    .catch((err) => {
+      console.warn('CosyVoice TTS 请求失败:', err)
+      ttsFallbackUsed.value = true
+      setTimeout(() => { ttsFallbackUsed.value = false }, 3000)
       if (!speakFallback(index, text)) {
         speakingIndex.value = -1
         showTtsError.value = true
@@ -501,10 +507,16 @@ onBeforeUnmount(() => {
       <div v-if="showSaveToast" class="toast toast-end">
         <div class="alert alert-success text-sm py-1">已保存记录</div>
       </div>
+      <!-- TTS fallback toast (CosyVoice → SpeechSynthesis) -->
+      <div v-if="ttsFallbackUsed" class="toast toast-end">
+        <div class="alert alert-info text-sm py-1">
+          已回退到浏览器语音（配置 DASHSCOPE_API_KEY 即可启用 CosyVoice）
+        </div>
+      </div>
       <!-- TTS error toast -->
       <div v-if="showTtsError" class="toast toast-end">
         <div class="alert alert-warning text-sm py-1">
-          语音朗读不可用：请配置阿里云 TTS Key 或使用支持语音的浏览器
+          语音朗读不可用：请配置 DASHSCOPE_API_KEY 或使用支持语音的浏览器
         </div>
       </div>
     </div>
