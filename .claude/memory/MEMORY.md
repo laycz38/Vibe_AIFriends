@@ -1,1 +1,4 @@
 - [Conda 虚拟环境路径](project_conda_env.md) — vibe_AIFriends 环境的 conda 路径和 pip 安装方式
+- [使用完整 Python 路径](feedback_use_full_python_path.md) — bash 中必须用完整 conda Python 路径，pip/python 不在 PATH 中
+- [代码+文档同步提交](feedback_docs_and_git_workflow.md) — 改动后更新文档 → 构建前端 → git commit → git push
+- [系统搜索前先询问](feedback_ask_before_system_search.md) — 不要在 C:/D: 根目录遍历搜索，先问用户路径

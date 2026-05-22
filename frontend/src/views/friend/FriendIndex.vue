@@ -3,6 +3,8 @@ import { computed, onMounted, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/js/http/api.js'
 import { useUserStore } from '@/stores/user.js'
+import MicIcon from '@/components/icons/MicIcon.vue'
+import Microphone from '@/components/chat/Microphone.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -27,6 +29,7 @@ const showCleanWarning = ref(false)
 const cleanDismissed = ref(false)
 const showTtsError = ref('') // error message, falsy when ok
 const ttsFallbackUsed = ref(false) // brief toast when CosyVoice falls back
+const showMic = ref(false) // toggle between text input and microphone
 
 // -- computed --
 const interviewNoteId = computed(() => {
@@ -389,6 +392,29 @@ function handleKeydown(e) {
   }
 }
 
+// -- microphone handlers --
+function handleMicSend(_event, text) {
+  showMic.value = false
+  if (text && text.trim()) {
+    inputText.value = text.trim()
+    send()
+  }
+}
+
+function handleMicStop() {
+  // Stop TTS playback when user starts speaking
+  if (streamAbortRef.value) {
+    streamAbortRef.value.abort()
+    streamAbortRef.value = null
+  }
+  if (currentAudio.value) {
+    currentAudio.value.pause()
+    currentAudio.value = null
+  }
+  if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
+  speakingIndex.value = -1
+}
+
 // -- clear conversation --
 function clearConversation() {
   if (messages.value.length <= 1) return
@@ -732,7 +758,7 @@ onBeforeUnmount(() => {
       <div v-if="isReadOnly" class="text-center text-xs md:text-sm text-base-content/40 py-2">
         这是已保存的记录，只读回放。点击"返回"继续聊天。
       </div>
-      <div v-else class="flex gap-2">
+      <div v-else-if="!showMic" class="flex gap-2">
         <input
           v-model="inputText"
           type="text"
@@ -742,12 +768,26 @@ onBeforeUnmount(() => {
           @keydown="handleKeydown"
         />
         <button
+          class="btn btn-ghost btn-sm md:btn-md px-2"
+          :disabled="sending"
+          @click="showMic = true"
+        >
+          <MicIcon />
+        </button>
+        <button
           class="btn btn-primary btn-sm md:btn-md"
           :disabled="!inputText.trim() || sending"
           @click="send"
         >
           发送
         </button>
+      </div>
+      <div v-else class="relative h-12">
+        <Microphone
+          @close="showMic = false"
+          @send="handleMicSend"
+          @stop="handleMicStop"
+        />
       </div>
     </div>
   </div>

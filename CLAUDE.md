@@ -56,6 +56,12 @@ Images are stored as **base64 strings in TextField columns**, not as file upload
 - Env var: `DASHSCOPE_API_KEY` (sk- prefix)
 - Fallback chain: streaming → non-streaming SDK → browser `SpeechSynthesis`
 
+**ASR (语音识别)** — DashScope WebSocket API, model `gummy-realtime-v1`:
+- `views/tts/asr.py` — `POST /api/tts/asr/`, accepts PCM audio via FormData, returns `{result, text}`
+- Browser VAD via `@ricky0123/vad-web` detects speech start/end, sends Float32→PCM16 to backend
+- Microphone component (`components/chat/Microphone.vue`) handles VAD lifecycle
+- Toggle mic/keyboard in chat input area; recognized text auto-fills and sends
+
 **URL routing** — all routes in `web/urls.py` (not project-level). The last two patterns handle SPA fallback: `path('', index)` for `/` and `re_path(r'^(?!media/|static/|assets/).*$', index)` for all other frontend routes. Static/media files are only served by Django in DEBUG mode; in production Nginx handles them.
 
 **Auth flow**: JWT via SimpleJWT. Login returns `access` + `access_token` (both the same value) in the response body and sets `refresh_token` as an httponly cookie. Refresh rotation is enabled.

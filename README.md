@@ -20,7 +20,8 @@
 | | Gunicorn | 23.x | 生产 WSGI 服务器 |
 | | Pillow | - | 图片处理（Base64 压缩/转码） |
 | **AI** | DeepSeek API | - | 智能对话 + 模拟面试 |
-| | 阿里云百炼 CosyVoice | dashscope SDK 1.25 | WebSocket 流式语音合成（longanhuan / longanyang） |
+| | 阿里云百炼 CosyVoice | dashscope SDK 1.25 | WebSocket 流式语音合成 + 语音识别 |
+| | @ricky0123/vad-web | 0.0.30 | 浏览器端 VAD 语音活动检测 |
 | **前端** | Vue | 3.5.32 | UI 框架 |
 | | Vite | 8.0.13 | 构建 + 开发服务器 |
 | | Tailwind CSS | 4.3.0 | 原子化 CSS |
@@ -133,7 +134,7 @@ AIFriends/
 │   │   └── urls.py              # 根路由
 │   └── web/
 │       ├── models.py            # UserProfile / InterviewNote / Like / Favorite / Comment
-│       ├── urls.py              # 18条 API 路由 + SPA fallback
+│       ├── urls.py              # 19条 API 路由 + SPA fallback
 │       ├── admin.py             # 5个模型后台注册
 │       ├── views/
 │       │   ├── index.py         # SPA fallback
@@ -141,7 +142,7 @@ AIFriends/
 │       │   ├── note/            # get_list / get_detail / create / toggle_like / toggle_favorite / favorite_list / create_comment
 │       │   ├── chat/            # send_message / interview / sessions
 │       │   ├── user/account/    # login / register / logout / refresh / info / update_profile
-│       │   └── tts/             # synthesize（非流式）+ stream（流式，首包 0.5s）
+│       │   └── tts/             # synthesize + stream（流式）+ asr（语音识别）
 │       ├── utils/
 │       │   └── aliyun_tts.py    # CosyVoice SDK + 流式回调 synthesize_stream()
 │       └── migrations/          # 8个迁移
@@ -201,6 +202,7 @@ AIFriends/
 | POST | `/api/chat/interview/` | JWT | DeepSeek 模拟面试（基于面经） |
 | POST | `/api/tts/synthesize/` | JWT | CosyVoice 语音合成，返回 base64 MP3 |
 | POST | `/api/tts/stream/` | JWT | CosyVoice 流式合成（audio/mpeg stream，首包 ~0.5s） |
+| POST | `/api/tts/asr/` | JWT | 语音识别（PCM → 文本），VAD 前端 + DashScope ASR |
 
 ### 面经
 | 方法 | 路径 | 认证 | 说明 |
