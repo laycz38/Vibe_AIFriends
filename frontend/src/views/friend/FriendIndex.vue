@@ -125,7 +125,7 @@ function speak(index, text) {
     .post('/api/tts/synthesize/', {
       text,
       voice: voiceGender.value,
-    })
+    }, { timeout: 30000 })
     .then(({ data }) => {
       if (data.result !== 'success' || !data.audio) {
         // Aliyun failed (no key or API error), fall back to SpeechSynthesis
