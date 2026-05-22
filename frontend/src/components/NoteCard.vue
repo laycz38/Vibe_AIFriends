@@ -4,7 +4,9 @@ import { RouterLink, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user.js'
 import api from '@/js/http/api.js'
 
-const DEFAULT_COVER = '/AI_interview_default.png'
+import defaultCover from '@/assets/AI_interview_default.png'
+
+const DEFAULT_COVER = defaultCover
 
 const props = defineProps({
   note: {

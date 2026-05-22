@@ -18,7 +18,9 @@ const inputText = ref('')
 const sending = ref(false)
 const chatContainer = ref(null)
 const speakingIndex = ref(-1)
-const currentAudio = ref(null) // HTMLAudioElement for Aliyun TTS playback
+const currentAudio = ref(null) // HTMLAudioElement for streaming/fallback TTS
+const currentSource = ref(null) // AudioBufferSourceNode for Web Audio API playback
+let audioCtx = null // persistent AudioContext for Web Audio API (iOS-compatible)
 const notes = ref([])
 const sessions = ref([])
 const loadedSessionId = ref(null)
@@ -80,6 +82,30 @@ function setGender(gender) {
   localStorage.setItem('tts_gender', gender)
 }
 
+function getAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  }
+  return audioCtx
+}
+
+function stopPlayback() {
+  if (currentSource.value) {
+    try { currentSource.value.stop() } catch {}
+    currentSource.value = null
+  }
+  if (currentAudio.value) {
+    currentAudio.value.pause()
+    currentAudio.value = null
+  }
+  if (streamAbortRef.value) {
+    streamAbortRef.value.abort()
+    streamAbortRef.value = null
+  }
+  if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
+  speakingIndex.value = -1
+}
+
 // MediaSource refs for streaming playback
 const mediaSourceRef = ref(null)
 const sourceBufferRef = ref(null)
@@ -103,30 +129,38 @@ function speakFallback(index, text) {
   }
 }
 
+// Unlock Web Audio API during user gesture.
+// Unlike HTML5 <audio>.play(), AudioContext.resume() during a gesture permanently
+// unlocks the context, and source.start() works even after await on iOS Safari.
+function unlockAudio() {
+  const ctx = getAudioContext()
+  if (ctx.state === 'suspended') {
+    ctx.resume()
+  }
+}
+
+function base64ToArrayBuffer(base64) {
+  const byteChars = atob(base64)
+  const buf = new ArrayBuffer(byteChars.length)
+  const view = new Uint8Array(buf)
+  for (let i = 0; i < byteChars.length; i++) view[i] = byteChars.charCodeAt(i)
+  return buf
+}
+
 async function speak(index, text) {
-  // Toggle off if clicking the same message
-  if (speakingIndex.value === index && currentAudio.value) {
-    currentAudio.value.pause()
-    currentAudio.value = null
-    speakingIndex.value = -1
+  // Resume AudioContext during gesture — required by iOS for Web Audio playback
+  unlockAudio()
+
+  // Toggle off
+  if (speakingIndex.value === index && (currentAudio.value || currentSource.value)) {
+    stopPlayback()
     return
   }
 
-  // Stop previous playback
-  if (currentAudio.value) {
-    currentAudio.value.pause()
-    currentAudio.value = null
-  }
-  if (streamAbortRef.value) {
-    streamAbortRef.value.abort()
-    streamAbortRef.value = null
-  }
-  speechSynthesis.cancel()
-  speakingIndex.value = -1
-
+  stopPlayback()
   speakingIndex.value = index
 
-  // Try streaming TTS via MediaSource (first chunk plays in ~0.5s)
+  // Try streaming TTS via MediaSource (desktop-only; iOS Safari lacks audio/mpeg MSE)
   try {
     const abortController = new AbortController()
     streamAbortRef.value = abortController
@@ -146,7 +180,6 @@ async function speak(index, text) {
       throw new Error(errData.message || `HTTP ${resp.status}`)
     }
 
-    // Setup MediaSource for progressive MP3 playback
     const ms = new MediaSource()
     mediaSourceRef.value = ms
     const audioUrl = URL.createObjectURL(ms)
@@ -162,9 +195,7 @@ async function speak(index, text) {
         msClosed = true
         try { URL.revokeObjectURL(audioUrl) } catch {}
       }
-      speakingIndex.value = -1
-      currentAudio.value = null
-      streamAbortRef.value = null
+      stopPlayback()
     }
 
     audio.onended = cleanup
@@ -182,7 +213,6 @@ async function speak(index, text) {
             }
           })
 
-          // Append any chunk that arrived before sourceopen
           if (chunks.length > 0 && !sourceBuffer.updating) {
             sourceBuffer.appendBuffer(chunks.shift())
           }
@@ -191,14 +221,12 @@ async function speak(index, text) {
         }
       })
 
-      // Read stream chunks
       const reader = resp.body.getReader()
       function pushChunk(data) {
         chunks.push(data)
         if (sourceBuffer && !sourceBuffer.updating) {
           sourceBuffer.appendBuffer(chunks.shift())
         }
-        // Start playing as soon as first chunk is buffered
         if (audio.paused && audio.readyState < 2) {
           audio.play().catch(() => {})
         }
@@ -222,57 +250,49 @@ async function speak(index, text) {
       }
       readLoop()
     })
+    return
   } catch (err) {
     if (err.name === 'AbortError') return
-
     console.warn('CosyVoice stream 失败，回退非流式:', err)
+    stopPlayback()
+    speakingIndex.value = index
+  }
 
-    // Fallback 1: non-streaming TTS endpoint (still SDK-based, faster than REST)
-    try {
-      const { data } = await api.post('/api/tts/synthesize/', {
-        text,
-        voice: voiceGender.value,
-      }, { timeout: 30000 })
+  // Fallback: non-streaming via Web Audio API (iOS-compatible).
+  // AudioContext was already resumed during gesture, so decodeAudioData + source.start()
+  // works even though we're now after await.
+  try {
+    const { data } = await api.post('/api/tts/synthesize/', {
+      text,
+      voice: voiceGender.value,
+    }, { timeout: 30000 })
 
-      if (data.result === 'success' && data.audio) {
-        const byteChars = atob(data.audio)
-        const len = byteChars.length
-        const buf = new ArrayBuffer(len)
-        const view = new Uint8Array(buf)
-        for (let i = 0; i < len; i++) view[i] = byteChars.charCodeAt(i)
-        const blob = new Blob([buf], { type: 'audio/mp3' })
-        const url = URL.createObjectURL(blob)
-        const audio = new Audio(url)
-        currentAudio.value = audio
-        audio.onended = () => {
-          speakingIndex.value = -1
-          currentAudio.value = null
-          URL.revokeObjectURL(url)
-        }
-        audio.onerror = () => {
-          speakingIndex.value = -1
-          currentAudio.value = null
-          URL.revokeObjectURL(url)
-        }
-        audio.play().catch(() => {
-          speakingIndex.value = -1
-          currentAudio.value = null
-          URL.revokeObjectURL(url)
-        })
-        return
-      }
-      throw new Error(data.message || 'no audio')
-    } catch (err2) {
-      console.warn('CosyVoice 非流式也失败:', err2)
-      showTtsError.value = err2.message
-      setTimeout(() => { showTtsError.value = '' }, 5000)
-      ttsFallbackUsed.value = true
-      setTimeout(() => { ttsFallbackUsed.value = false }, 3000)
-      if (!speakFallback(index, text)) {
+    if (data.result === 'success' && data.audio) {
+      const ctx = getAudioContext()
+      const buf = base64ToArrayBuffer(data.audio)
+      const audioBuffer = await ctx.decodeAudioData(buf)
+      const source = ctx.createBufferSource()
+      source.buffer = audioBuffer
+      source.connect(ctx.destination)
+      source.onended = () => {
+        currentSource.value = null
         speakingIndex.value = -1
-        showTtsError.value = '浏览器语音也不可用'
-        setTimeout(() => { showTtsError.value = '' }, 4000)
       }
+      source.start(0)
+      currentSource.value = source
+      return
+    }
+    throw new Error(data.message || 'no audio')
+  } catch (err2) {
+    console.warn('CosyVoice 非流式也失败:', err2)
+    stopPlayback()
+    showTtsError.value = err2.message || '语音合成失败'
+    setTimeout(() => { showTtsError.value = '' }, 5000)
+    ttsFallbackUsed.value = true
+    setTimeout(() => { ttsFallbackUsed.value = false }, 3000)
+    if (!speakFallback(index, text)) {
+      showTtsError.value = '浏览器语音也不可用'
+      setTimeout(() => { showTtsError.value = '' }, 4000)
     }
   }
 }
@@ -408,17 +428,7 @@ function handleMicError(msg) {
 }
 
 function handleMicStop() {
-  // Stop TTS playback when user starts speaking
-  if (streamAbortRef.value) {
-    streamAbortRef.value.abort()
-    streamAbortRef.value = null
-  }
-  if (currentAudio.value) {
-    currentAudio.value.pause()
-    currentAudio.value = null
-  }
-  if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
-  speakingIndex.value = -1
+  stopPlayback()
 }
 
 // -- clear conversation --
@@ -431,16 +441,7 @@ function clearConversation() {
   localStorage.removeItem('chat_session_id')
   cleanDismissed.value = false
   showCleanWarning.value = false
-  if (streamAbortRef.value) {
-    streamAbortRef.value.abort()
-    streamAbortRef.value = null
-  }
-  if (currentAudio.value) {
-    currentAudio.value.pause()
-    currentAudio.value = null
-  }
-  if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
-  speakingIndex.value = -1
+  stopPlayback()
 }
 
 // -- notes & sessions --
@@ -531,6 +532,14 @@ watch(interviewNoteId, (newId, oldId) => {
 })
 
 onMounted(() => {
+  // Unlock HTML5 audio on first user interaction (touch/click anywhere)
+  const events = ['touchstart', 'touchend', 'mousedown', 'keydown', 'click']
+  function unlockOnce() {
+    unlockAudio()
+    events.forEach((e) => document.removeEventListener(e, unlockOnce, true))
+  }
+  events.forEach((e) => document.addEventListener(e, unlockOnce, { once: true, capture: true }))
+
   loadNotes()
   loadSessions()
 
@@ -543,15 +552,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  if (streamAbortRef.value) {
-    streamAbortRef.value.abort()
-    streamAbortRef.value = null
-  }
-  if (currentAudio.value) {
-    currentAudio.value.pause()
-    currentAudio.value = null
-  }
-  if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
+  stopPlayback()
 })
 </script>
 

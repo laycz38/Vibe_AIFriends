@@ -56,7 +56,9 @@ function formatCommentTime(time) {
   return d.toLocaleDateString('zh-CN')
 }
 
-const DEFAULT_COVER = '/AI_interview_default.png'
+import defaultCover from '@/assets/AI_interview_default.png'
+
+const DEFAULT_COVER = defaultCover
 
 function difficultyStyle(level) {
   const map = {

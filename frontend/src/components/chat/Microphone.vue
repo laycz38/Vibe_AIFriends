@@ -15,6 +15,10 @@ const VAD_BASE = import.meta.env.DEV
   ? '/vad/'
   : '/static/frontend/vad/'
 
+const ORT_BASE = import.meta.env.DEV
+  ? '/node_modules/onnxruntime-web/dist/'
+  : '/static/frontend/vad/'
+
 const startRecording = async () => {
   try {
     console.log('[VAD] Initializing with base path:', VAD_BASE)
@@ -39,7 +43,7 @@ const startRecording = async () => {
       },
       ortConfig: (ort) => {
         ort.env.logLevel = 'error'
-        ort.env.wasm.wasmPaths = '/node_modules/onnxruntime-web/dist/'
+        ort.env.wasm.wasmPaths = ORT_BASE
       },
       positiveSpeechThreshold: 0.8,
       negativeSpeechThreshold: 0.65,
