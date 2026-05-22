@@ -22,7 +22,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      'onnxruntime-web/wasm': fileURLToPath(new URL('./node_modules/onnxruntime-web/dist/ort.wasm.bundle.min.mjs', import.meta.url)),
+      'onnxruntime-web': fileURLToPath(new URL('./node_modules/onnxruntime-web/dist/ort.bundle.min.mjs', import.meta.url)),
     },
   },
   build: {

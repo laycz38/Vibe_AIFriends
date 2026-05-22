@@ -26,7 +26,24 @@
       "Bash(py *)",
       "Bash(D:/coding_software/anaconda3/python.exe *)",
       "Bash(D:/coding_software/anaconda3/Scripts/conda.exe env *)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "WebSearch",
+      "Bash(git push *)",
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "WebFetch(domain:github.com)",
+      "Bash(where conda *)",
+      "Read(//d/ProgramData/anaconda3/**)",
+      "Read(//c/ProgramData/anaconda3/**)",
+      "Read(//d/Anaconda3/**)",
+      "Read(//c/Anaconda3/**)",
+      "Read(//d/Users/20818/anaconda3/**)",
+      "Bash(cmd.exe /c \"where conda\")",
+      "Bash(npm install *)",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(rm -rf /d/vibe_coding/AIFriends/frontend/node_modules/.vite)",
+      "Bash(grep *)"
     ]
   }
 }
