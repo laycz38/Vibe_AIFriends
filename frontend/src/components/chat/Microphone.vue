@@ -39,6 +39,7 @@ const startRecording = async () => {
       },
       ortConfig: (ort) => {
         ort.env.logLevel = 'error'
+        ort.env.wasm.wasmPaths = '/node_modules/onnxruntime-web/dist/'
       },
       positiveSpeechThreshold: 0.8,
       negativeSpeechThreshold: 0.65,

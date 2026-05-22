@@ -56,7 +56,7 @@ function formatCommentTime(time) {
   return d.toLocaleDateString('zh-CN')
 }
 
-const DEFAULT_COVER = 'https://picsum.photos/seed/tech_office/1200/600'
+const DEFAULT_COVER = '/AI_interview_default.png'
 
 function difficultyStyle(level) {
   const map = {
