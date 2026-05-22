@@ -11,6 +11,7 @@ from web.views.note.common import serialize_note
 @permission_classes([AllowAny])
 def get_list(request):
     search_query = request.GET.get('search_query', '').strip()
+    user_id = request.GET.get('user_id', '').strip()
 
     notes = InterviewNote.objects.select_related('user__userprofile')
 
@@ -26,6 +27,9 @@ def get_list(request):
         )
 
     notes = notes.annotate(comment_count=Count('comments'))
+
+    if user_id:
+        notes = notes.filter(user_id=int(user_id))
 
     if search_query:
         notes = notes.filter(

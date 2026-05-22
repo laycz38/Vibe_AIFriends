@@ -6,12 +6,15 @@ from rest_framework_simplejwt.views import (
 from web.views.index import index
 from web.views.note.create import create as create_note
 from web.views.note.create_comment import create_comment
+from web.views.note.delete import delete as delete_note
 from web.views.note.favorite_list import favorite_list
 from web.views.note.get_detail import get_detail
 from web.views.note.get_list import get_list
 from web.views.note.toggle_favorite import toggle_favorite
 from web.views.note.toggle_like import toggle_like
+from web.views.note.update import update as update_note
 from web.views.user.account.get_user_info import get_user_info
+from web.views.user.account.get_user_profile import get_user_profile
 from web.views.user.account.login import login
 from web.views.user.account.logout import logout
 from web.views.user.account.refresh_token import refresh_token
@@ -33,10 +36,13 @@ urlpatterns = [
     path('api/user/account/refresh_token/', refresh_token, name='user_account_refresh_token'),
     path('api/user/account/info/', get_user_info, name='user_account_info'),
     path('api/user/account/update_profile/', update_profile, name='user_account_update_profile'),
+    path('api/user/<int:user_id>/profile/', get_user_profile, name='user_profile'),
     path('api/notes/', get_list, name='note_list'),
     path('api/notes/create/', create_note, name='note_create'),
     path('api/notes/favorites/', favorite_list, name='note_favorite_list'),
     path('api/notes/<int:note_id>/', get_detail, name='note_detail'),
+    path('api/notes/<int:note_id>/update/', update_note, name='note_update'),
+    path('api/notes/<int:note_id>/delete/', delete_note, name='note_delete'),
     path('api/notes/<int:note_id>/toggle_like/', toggle_like, name='note_toggle_like'),
     path('api/notes/<int:note_id>/toggle_favorite/', toggle_favorite, name='note_toggle_favorite'),
     path('api/notes/<int:note_id>/comments/create/', create_comment, name='note_comment_create'),

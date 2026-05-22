@@ -12,6 +12,7 @@
     "@ricky0123/vad-web": "^0.0.30",
     "@tailwindcss/vite": "^4.3.0",
     "axios": "^1.16.1",
+    "croppie": "^2.6.5",
     "daisyui": "^5.5.19",
     "pinia": "^3.0.4",
     "tailwindcss": "^4.3.0",

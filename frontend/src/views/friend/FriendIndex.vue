@@ -189,6 +189,7 @@ async function speak(index, text) {
     const chunks = []
     let sourceBuffer = null
     let msClosed = false
+    let streamReject = null
 
     const cleanup = () => {
       if (!msClosed) {
@@ -199,9 +200,13 @@ async function speak(index, text) {
     }
 
     audio.onended = cleanup
-    audio.onerror = cleanup
+    audio.onerror = () => {
+      cleanup()
+      streamReject?.(new Error('音频元素播放错误'))
+    }
 
     await new Promise((resolve, reject) => {
+      streamReject = reject
       ms.addEventListener('sourceopen', () => {
         try {
           sourceBuffer = ms.addSourceBuffer('audio/mpeg')
@@ -228,7 +233,9 @@ async function speak(index, text) {
           sourceBuffer.appendBuffer(chunks.shift())
         }
         if (audio.paused && audio.readyState < 2) {
-          audio.play().catch(() => {})
+          audio.play().catch(() => {
+            streamReject?.(new Error('浏览器阻止了自动播放'))
+          })
         }
       }
 
@@ -269,12 +276,38 @@ async function speak(index, text) {
 
     if (data.result === 'success' && data.audio) {
       const ctx = getAudioContext()
+
+      // Ensure context is running. If suspended and we're outside a gesture,
+      // resume() may be ignored — detect this and bail to SpeechSynthesis.
+      if (ctx.state === 'suspended') {
+        await ctx.resume()
+      }
+      if (ctx.state !== 'running') {
+        throw new Error('AudioContext 未能激活，请点击页面任意位置后重试')
+      }
+
       const buf = base64ToArrayBuffer(data.audio)
       const audioBuffer = await ctx.decodeAudioData(buf)
       const source = ctx.createBufferSource()
       source.buffer = audioBuffer
       source.connect(ctx.destination)
+
+      // Safety timeout: if onended never fires (e.g. context gets suspended
+      // mid-playback on iOS), reset state after 60s so UI isn't stuck.
+      let ended = false
+      const safetyTimer = setTimeout(() => {
+        if (!ended) {
+          ended = true
+          try { source.stop() } catch {}
+          currentSource.value = null
+          speakingIndex.value = -1
+        }
+      }, 60000)
+
       source.onended = () => {
+        if (ended) return
+        ended = true
+        clearTimeout(safetyTimer)
         currentSource.value = null
         speakingIndex.value = -1
       }
@@ -363,6 +396,11 @@ async function loadAutoSession() {
 async function send() {
   const text = inputText.value.trim()
   if (!text || sending.value || isReadOnly.value) return
+
+  // Resume AudioContext while still in the user-gesture chain.
+  // The interview-mode auto-speak fires via setTimeout after await,
+  // so the context must already be active before the first await.
+  try { unlockAudio() } catch {}
 
   messages.value.push({ role: 'user', content: text })
   inputText.value = ''
@@ -532,8 +570,9 @@ watch(interviewNoteId, (newId, oldId) => {
 })
 
 onMounted(() => {
-  // Unlock HTML5 audio on first user interaction (touch/click anywhere)
-  const events = ['touchstart', 'touchend', 'mousedown', 'keydown', 'click']
+  // Unlock Web Audio on first user interaction. Must use touchend/click —
+  // iOS Safari does NOT accept touchstart/mousedown as a gesture for AudioContext.resume().
+  const events = ['touchend', 'click']
   function unlockOnce() {
     unlockAudio()
     events.forEach((e) => document.removeEventListener(e, unlockOnce, true))

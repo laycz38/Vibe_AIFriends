@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user.js'
 import api from '@/js/http/api.js'
@@ -13,7 +13,15 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  canEdit: {
+    type: Boolean,
+    default: false,
+  },
 })
+
+const emit = defineEmits(['edit', 'delete'])
+
+const isOwner = computed(() => props.canEdit && userStore.user?.id === props.note.author_id)
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -79,6 +87,29 @@ function difficultyStyle(level) {
         >
           {{ note.difficulty }}
         </span>
+
+        <div v-if="isOwner" class="absolute top-10 right-2 flex flex-col gap-1">
+          <button
+            class="btn btn-circle btn-xs bg-black/40 border-none text-white hover:bg-black/60"
+            @click.prevent="emit('edit', note)"
+          >
+            <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+          <button
+            class="btn btn-circle btn-xs bg-black/40 border-none text-white hover:bg-red-500/70"
+            @click.prevent="emit('delete', note)"
+          >
+            <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+          </button>
+        </div>
 
         <div class="absolute bottom-3 left-3 right-3">
           <div class="text-white font-bold text-sm line-clamp-2 leading-snug">

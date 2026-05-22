@@ -1,17 +1,16 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { reactive, ref, watch, computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useUserStore } from '../../stores/user.js'
+import Photo from './components/Photo.vue'
 
 const userStore = useUserStore()
 const saving = ref(false)
 const successMessage = ref('')
 const errorMessage = ref('')
-const avatarFile = ref(null)
-const avatarPreview = ref('')
+const photoRef = ref(null)
 
 const displayName = computed(() => userStore.user?.username || '未登录用户')
-const profileBio = computed(() => userStore.user?.bio?.trim() || '还没有填写个人简介')
 
 const form = reactive({
   bio: '',
@@ -21,30 +20,9 @@ watch(
   () => userStore.user,
   (user) => {
     form.bio = user?.bio || ''
-    avatarPreview.value = user?.photo || ''
   },
   { immediate: true },
 )
-
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
-
-function handleAvatarChange(event) {
-  const file = event.target.files?.[0] || null
-  avatarFile.value = file
-
-  if (file) {
-    avatarPreview.value = URL.createObjectURL(file)
-  } else {
-    avatarPreview.value = userStore.user?.photo || ''
-  }
-}
 
 async function submitProfile() {
   saving.value = true
@@ -53,12 +31,11 @@ async function submitProfile() {
 
   try {
     const payload = { bio: form.bio }
-    if (avatarFile.value) {
-      payload.photo_base64 = await fileToBase64(avatarFile.value)
+    const newPhoto = photoRef.value?.myPhoto
+    if (newPhoto && newPhoto !== userStore.user?.photo) {
+      payload.photo_base64 = newPhoto
     }
     await userStore.updateProfile(payload)
-    avatarFile.value = null
-    avatarPreview.value = userStore.user?.photo || ''
     successMessage.value = '资料已更新'
   } catch (error) {
     errorMessage.value = error.response?.data?.message || error.message || '更新资料失败'
@@ -69,89 +46,63 @@ async function submitProfile() {
 </script>
 
 <template>
-  <section class="p-6">
-    <div class="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-      <div class="rounded-[32px] bg-white p-8 shadow-sm">
-        <p class="mb-2 text-sm font-medium text-indigo-500">Profile</p>
-        <h1 class="text-3xl font-bold text-gray-900">我的主页</h1>
-        <p class="mt-2 text-sm text-gray-500">当前账号：{{ displayName }}</p>
+  <div class="flex justify-center p-6">
+    <div class="card w-full max-w-lg bg-base-200 shadow-sm mt-8">
+      <div class="card-body">
+        <h3 class="text-lg font-bold mb-2">编辑资料</h3>
+        <p class="text-sm text-base-content/60 mb-6">{{ displayName }} 的个人主页</p>
 
-        <div class="mt-8 flex flex-col items-center rounded-[28px] bg-[#fafafa] p-6 text-center">
-          <div class="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-3xl font-semibold text-indigo-700">
-            <img
-              v-if="avatarPreview"
-              :src="avatarPreview"
-              alt="avatar"
-              class="h-full w-full object-cover"
-            />
-            <span v-else>{{ displayName.slice(0, 1).toUpperCase() }}</span>
-          </div>
-          <h2 class="mt-4 text-xl font-semibold text-gray-900">{{ displayName }}</h2>
-          <p class="mt-2 text-sm leading-6 text-gray-500">{{ profileBio }}</p>
-        </div>
+        <Photo ref="photoRef" :photo="userStore.user?.photo || ''" />
 
-        <div class="mt-6 grid gap-4">
-          <div class="rounded-2xl bg-gray-50 p-5">
-            <p class="text-sm text-gray-500 mb-1">发布面经</p>
-            <p class="text-2xl font-bold text-gray-900">{{ userStore.user?.note_count || 0 }}</p>
+        <div class="divider my-6"></div>
+
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend text-base">个人简介</legend>
+          <textarea
+            v-model="form.bio"
+            class="textarea w-full"
+            rows="5"
+            placeholder="写一段你的求职方向、擅长技术、目标公司或面试准备方法..."
+          ></textarea>
+          <p class="fieldset-label text-xs text-base-content/50">{{ form.bio.length }} / 500</p>
+        </fieldset>
+
+        <p v-if="successMessage" class="text-sm text-success mt-2">{{ successMessage }}</p>
+        <p v-if="errorMessage" class="text-sm text-error mt-2">{{ errorMessage }}</p>
+
+        <button
+          class="btn btn-neutral mt-4"
+          :disabled="saving"
+          @click="submitProfile"
+        >
+          {{ saving ? '保存中...' : '保存资料' }}
+        </button>
+
+        <div class="divider my-4"></div>
+
+        <div class="stats stats-horizontal shadow-sm">
+          <div class="stat text-center">
+            <div class="stat-title text-xs">发布面经</div>
+            <div class="stat-value text-xl">{{ userStore.user?.note_count || 0 }}</div>
           </div>
-          <div class="rounded-2xl bg-gray-50 p-5">
-            <p class="text-sm text-gray-500 mb-1">发布评论</p>
-            <p class="text-2xl font-bold text-gray-900">{{ userStore.user?.comment_count || 0 }}</p>
+          <div class="stat text-center">
+            <div class="stat-title text-xs">发布评论</div>
+            <div class="stat-value text-xl">{{ userStore.user?.comment_count || 0 }}</div>
           </div>
-          <div class="rounded-2xl bg-gray-50 p-5">
-            <p class="text-sm text-gray-500 mb-1">点赞次数</p>
-            <p class="text-2xl font-bold text-gray-900">{{ userStore.user?.like_count || 0 }}</p>
+          <div class="stat text-center">
+            <div class="stat-title text-xs">点赞次数</div>
+            <div class="stat-value text-xl">{{ userStore.user?.like_count || 0 }}</div>
           </div>
         </div>
 
         <RouterLink
-          :to="userStore.user ? `/user/${userStore.user.id}/` : '/user/account/login/'"
-          class="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+          v-if="userStore.user"
+          :to="`/user/${userStore.user.id}/`"
+          class="btn btn-ghost btn-sm mt-2"
         >
-          {{ userStore.user ? '查看我的空间' : '去登录' }}
+          查看我的空间
         </RouterLink>
       </div>
-
-      <div class="rounded-[32px] bg-white p-8 shadow-sm">
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <h2 class="text-2xl font-bold text-gray-900">编辑资料</h2>
-            <p class="mt-2 text-sm text-gray-500">头像和简介都会保存到后端数据库，右上角头像菜单会实时显示最新资料。</p>
-          </div>
-        </div>
-
-        <form class="mt-8 space-y-6" @submit.prevent="submitProfile">
-          <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">头像</label>
-            <input
-              type="file"
-              accept="image/*"
-              class="w-full rounded-2xl border border-gray-200 px-4 py-3 outline-none file:mr-4 file:rounded-full file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-indigo-600 hover:file:bg-indigo-100"
-              @change="handleAvatarChange"
-            />
-          </div>
-
-          <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">个人简介</label>
-            <textarea
-              v-model="form.bio"
-              class="min-h-[180px] w-full rounded-[24px] border border-gray-200 px-4 py-3 text-sm leading-7 outline-none focus:border-indigo-500"
-              placeholder="写一段你的求职方向、擅长技术、目标公司或面试准备方法..."
-            ></textarea>
-          </div>
-
-          <p v-if="successMessage" class="text-sm text-green-600">{{ successMessage }}</p>
-          <p v-if="errorMessage" class="text-sm text-red-500">{{ errorMessage }}</p>
-
-          <button
-            class="rounded-2xl bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-            :disabled="saving"
-          >
-            {{ saving ? '保存中...' : '保存资料' }}
-          </button>
-        </form>
-      </div>
     </div>
-  </section>
+  </div>
 </template>
