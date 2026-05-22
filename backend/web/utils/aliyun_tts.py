@@ -24,7 +24,7 @@ def synthesize(text, voice='female'):
             'text': text,
             'voice': voice_name,
             'format': 'mp3',
-            'sample_rate': 22050,
+            'sample_rate': 24000,
         },
     }).encode('utf-8')
 
@@ -41,14 +41,31 @@ def synthesize(text, voice='female'):
         with urllib.request.urlopen(req, timeout=30) as resp:
             body = resp.read()
             ct = resp.headers.get('Content-Type', '')
-            if 'json' in ct:
-                # JSON response: extract audio from output field
-                data = json.loads(body.decode('utf-8'))
-                audio_b64 = data.get('output', {}).get('audio')
-                if audio_b64:
-                    return base64.b64decode(audio_b64)
-                raise Exception(f'CosyVoice 返回 JSON 但无音频: {data}')
-            return body
+            if 'json' not in ct:
+                return body
+
+            # JSON response: extract audio
+            data = json.loads(body.decode('utf-8'))
+            audio_info = data.get('output', {}).get('audio')
+
+            # audio_info is a dict with 'url' and 'data' fields
+            if isinstance(audio_info, dict):
+                # Try base64 data first
+                if audio_info.get('data'):
+                    return base64.b64decode(audio_info['data'])
+                # Download from OSS URL
+                audio_url = audio_info.get('url')
+                if audio_url:
+                    with urllib.request.urlopen(audio_url, timeout=15) as aud_resp:
+                        return aud_resp.read()
+                raise Exception(f'CosyVoice 音频无 data 也无 url: {data}')
+
+            # audio_info is a plain base64 string
+            if isinstance(audio_info, str) and audio_info:
+                return base64.b64decode(audio_info)
+
+            raise Exception(f'CosyVoice 返回格式无法解析: {data}')
+
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8') if e.fp else ''
         raise Exception(f'CosyVoice API 错误 ({e.code}): {error_body}')
