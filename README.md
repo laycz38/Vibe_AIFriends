@@ -19,6 +19,8 @@
 | | django-cors-headers | 4.9.0 | 跨域请求 |
 | | Gunicorn | 23.x | 生产 WSGI 服务器 |
 | | Pillow | - | 图片处理（Base64 压缩/转码） |
+| **AI** | DeepSeek API | - | 智能对话 + 模拟面试 |
+| | 阿里云 NLS TTS | - | 语音合成（ailun / aicheng 精品音色） |
 | **前端** | Vue | 3.5.32 | UI 框架 |
 | | Vite | 8.0.13 | 构建 + 开发服务器 |
 | | Tailwind CSS | 4.3.0 | 原子化 CSS |
@@ -90,7 +92,7 @@ cd ../backend                         # 生产用 Gunicorn + Nginx
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| Django 后端骨架 | ✅ | 项目配置、路由、5个数据模型 |
+| Django 后端骨架 | ✅ | 项目配置、路由、5个数据模型、阿里云 TTS 集成 |
 | JWT 登录/注册/退出 | ✅ | `access_token`（2h）+ `refresh_token`（7d） |
 | Token 自动刷新 | ✅ | axios 拦截器 + 队列防并发 |
 | daisyUI 响应式布局 | ✅ | drawer 侧栏 + navbar 顶栏（`lg:drawer-open`） |
@@ -109,6 +111,7 @@ cd ../backend                         # 生产用 Gunicorn + Nginx
 | 生产环境变量配置 | ✅ | `settings.py` 读取 `DJANGO_DEBUG` / `DJANGO_SECRET_KEY` |
 | Nginx + Gunicorn 部署 | ✅ | `app6809.acapp.acwing.com.cn` |
 | 一键部署脚本 | ✅ | `deploy.py`（构建+上传+迁移+重启） |
+| 阿里云 TTS 语音朗读 | ✅ | 精品音色（ailun 女声 / aicheng 男声），替换浏览器原生 SpeechSynthesis |
 | Git 版本管理 | ✅ | GitHub: `laycz38/Vibe_AIFriends` |
 
 ---
@@ -130,13 +133,17 @@ AIFriends/
 │   │   └── urls.py              # 根路由
 │   └── web/
 │       ├── models.py            # UserProfile / InterviewNote / Like / Favorite / Comment
-│       ├── urls.py              # 16条 API 路由 + SPA fallback
+│       ├── urls.py              # 17条 API 路由 + SPA fallback
 │       ├── admin.py             # 5个模型后台注册
 │       ├── views/
 │       │   ├── index.py         # SPA fallback
 │       │   ├── image_utils.py   # Base64 图片处理（压缩/转码）
 │       │   ├── note/            # get_list / get_detail / create / toggle_like / toggle_favorite / favorite_list / create_comment
-│       │   └── user/account/    # login / register / logout / refresh / info / update_profile
+│       │   ├── chat/            # send_message / interview / sessions
+│       │   ├── user/account/    # login / register / logout / refresh / info / update_profile
+│       │   └── tts/             # synthesize（阿里云 NLS TTS）
+│       ├── utils/
+│       │   └── aliyun_tts.py    # TTS Token 管理 + 语音合成
 │       └── migrations/          # 8个迁移
 │
 ├── frontend/                    # Vue 3 前端
@@ -187,6 +194,13 @@ AIFriends/
 | GET | `/api/user/account/info/` | JWT | 用户信息 |
 | POST | `/api/user/account/update_profile/` | JWT | 更新头像(Base64)/简介 |
 
+### AI 对话 & TTS
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| POST | `/api/chat/send/` | JWT | DeepSeek 自由对话 |
+| POST | `/api/chat/interview/` | JWT | DeepSeek 模拟面试（基于面经） |
+| POST | `/api/tts/synthesize/` | JWT | 阿里云 TTS 语音合成，返回 base64 MP3 |
+
 ### 面经
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
@@ -212,6 +226,31 @@ AIFriends/
 
 > 图片存储方式：所有用户头像和面经封面以 Base64 字符串存入数据库 TextField，而非文件系统。
 > 上传时自动压缩至 1200px 以内，详见 `web/views/image_utils.py`。
+
+---
+
+## 环境变量
+
+配置 `backend/.env`：
+
+```bash
+# Django
+DJANGO_SECRET_KEY=your-secret-key
+DJANGO_DEBUG=True
+
+# DeepSeek（AI 对话）
+DEEPSEEK_API_KEY=sk-your-key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+
+# 阿里云 NLS TTS（语音朗读，可选）
+# 开通：https://nls.aliyun.com/ → 智能语音交互 → 创建项目
+ALIYUN_NLS_ACCESS_KEY_ID=
+ALIYUN_NLS_ACCESS_KEY_SECRET=
+ALIYUN_NLS_APPKEY=
+```
+
+> 阿里云 TTS 为可选功能。若不配置，前端朗读按钮将不可用。
+> 开通后默认使用精品音色 `ailun`（温暖女声）和 `aicheng`（成熟男声），标准音色为 `xiaoyun` / `xiaogang`。
 
 ---
 

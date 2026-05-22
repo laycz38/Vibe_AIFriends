@@ -20,6 +20,7 @@ from web.views.user.account.update_profile import update_profile
 from web.views.chat.send_message import send_message
 from web.views.chat.interview import interview
 from web.views.chat.sessions import list_sessions, get_session, save_session, delete_session
+from web.views.tts.synthesize import synthesize_speech
 
 urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -43,6 +44,7 @@ urlpatterns = [
     path('api/chat/sessions/save/', save_session, name='chat_sessions_save'),
     path('api/chat/sessions/<int:session_id>/', get_session, name='chat_sessions_detail'),
     path('api/chat/sessions/<int:session_id>/delete/', delete_session, name='chat_sessions_delete'),
+    path('api/tts/synthesize/', synthesize_speech, name='tts_synthesize'),
     path('', index, name='index'),
     re_path(r'^(?!media/|static/|assets/).*$', index, name='frontend_fallback'),
 ]

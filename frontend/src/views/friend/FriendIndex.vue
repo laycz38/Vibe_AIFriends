@@ -12,15 +12,16 @@ const inputText = ref('')
 const sending = ref(false)
 const chatContainer = ref(null)
 const speakingIndex = ref(-1)
+const currentAudio = ref(null) // HTMLAudioElement for Aliyun TTS playback
 const notes = ref([])
 const sessions = ref([])
 const loadedSessionId = ref(null)
 const sessionId = ref(null) // current auto-save session id
-const voices = ref([])
 const voiceGender = ref(localStorage.getItem('tts_gender') || 'female')
 const showSaveToast = ref(false)
 const showCleanWarning = ref(false)
 const cleanDismissed = ref(false)
+const ttsLoading = ref(false) // loading state for TTS requests
 
 // -- computed --
 const interviewNoteId = computed(() => {
@@ -66,64 +67,75 @@ function getWelcomeMessage() {
   return '你好！我是 AI 面试助手，可以帮你解答面试相关的问题。选择一篇面经笔记可以开始模拟面试，也可以直接向我提问。'
 }
 
-// -- voice / emotional TTS --
-// Classify voices by gender heuristically
-function getMaleVoices() {
-  return voices.value.filter((v) => {
-    const name = v.name.toLowerCase()
-    return name.includes('male') || name.includes('男生') || name.includes('男声') ||
-           name.includes('zira') || name.includes('david') || name.includes('james') ||
-           name.includes('george') || name.includes('richard') || name.includes('yunxi') ||
-           name.includes('yunjian') || name.includes('yunyang') || name.includes('zhcn-xiaochen') ||
-           name.includes('kangkang')
-  })
-}
-function getFemaleVoices() {
-  return voices.value.filter((v) => {
-    const name = v.name.toLowerCase()
-    return name.includes('female') || name.includes('女生') || name.includes('女声') ||
-           name.includes('susan') || name.includes('hazel') || name.includes('zhiyu') ||
-           name.includes('xiaoxiao') || name.includes('xiaoqiu') || name.includes('yunye') ||
-           name.includes('yunjia') || name.includes('xiaohan') || name.includes('xiaoshuang') ||
-           name.includes('zhcn-xiaoxiao') || name.includes('meijia') || name.includes('huihui')
-  })
-}
-
-function getVoice() {
-  const isMale = voiceGender.value === 'male'
-  const preferred = isMale ? getMaleVoices() : getFemaleVoices()
-  if (preferred.length > 0) return preferred[0]
-  // fallback to any zh voice
-  const zh = voices.value.find((v) => v.lang.startsWith('zh'))
-  return zh || voices.value[0] || null
-}
-
-function speak(index, text) {
-  if (speakingIndex.value === index) {
-    speechSynthesis.cancel()
-    speakingIndex.value = -1
-    return
-  }
-  speechSynthesis.cancel()
-
-  // Emotional TTS: add expression via pitch/rate variation
-  const utterance = new SpeechSynthesisUtterance(text)
-  utterance.lang = 'zh-CN'
-  utterance.rate = 0.88 // slightly slower for natural feel
-  utterance.pitch = 1.05 // slight pitch boost for warmth
-
-  const voice = getVoice()
-  if (voice) utterance.voice = voice
-
-  utterance.onend = () => { speakingIndex.value = -1 }
-  utterance.onerror = () => { speakingIndex.value = -1 }
-  speakingIndex.value = index
-  speechSynthesis.speak(utterance)
-}
-
 function setGender(gender) {
   voiceGender.value = gender
   localStorage.setItem('tts_gender', gender)
+}
+
+// Base64 → Blob → play audio via Aliyun TTS
+function base64ToBlob(b64, mime) {
+  const byteChars = atob(b64)
+  const len = byteChars.length
+  const buf = new ArrayBuffer(len)
+  const view = new Uint8Array(buf)
+  for (let i = 0; i < len; i++) view[i] = byteChars.charCodeAt(i)
+  return new Blob([buf], { type: mime })
+}
+
+function speak(index, text) {
+  // Toggle off if clicking the same message
+  if (speakingIndex.value === index && currentAudio.value) {
+    currentAudio.value.pause()
+    currentAudio.value = null
+    speakingIndex.value = -1
+    return
+  }
+
+  // Stop previous playback
+  if (currentAudio.value) {
+    currentAudio.value.pause()
+    currentAudio.value = null
+  }
+  speakingIndex.value = -1
+
+  speakingIndex.value = index
+  ttsLoading.value = true
+
+  api
+    .post('/api/tts/synthesize/', {
+      text,
+      voice: voiceGender.value,
+    })
+    .then(({ data }) => {
+      ttsLoading.value = false
+      if (data.result !== 'success' || !data.audio) {
+        speakingIndex.value = -1
+        return
+      }
+      const blob = base64ToBlob(data.audio, 'audio/mp3')
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      currentAudio.value = audio
+      audio.onended = () => {
+        speakingIndex.value = -1
+        currentAudio.value = null
+        URL.revokeObjectURL(url)
+      }
+      audio.onerror = () => {
+        speakingIndex.value = -1
+        currentAudio.value = null
+        URL.revokeObjectURL(url)
+      }
+      audio.play().catch(() => {
+        speakingIndex.value = -1
+        currentAudio.value = null
+        URL.revokeObjectURL(url)
+      })
+    })
+    .catch(() => {
+      ttsLoading.value = false
+      speakingIndex.value = -1
+    })
 }
 
 // -- localStorage draft --
@@ -251,7 +263,10 @@ function clearConversation() {
   localStorage.removeItem('chat_session_id')
   cleanDismissed.value = false
   showCleanWarning.value = false
-  speechSynthesis.cancel()
+  if (currentAudio.value) {
+    currentAudio.value.pause()
+    currentAudio.value = null
+  }
   speakingIndex.value = -1
 }
 
@@ -343,9 +358,6 @@ watch(interviewNoteId, (newId, oldId) => {
 })
 
 onMounted(() => {
-  speechSynthesis.getVoices()
-  speechSynthesis.onvoiceschanged = loadVoices
-  loadVoices()
   loadNotes()
   loadSessions()
 
@@ -358,27 +370,24 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  speechSynthesis.cancel()
+  if (currentAudio.value) {
+    currentAudio.value.pause()
+    currentAudio.value = null
+  }
 })
-
-function loadVoices() {
-  const all = speechSynthesis.getVoices()
-  voices.value = all.filter((v) => v.lang.startsWith('zh'))
-  if (voices.value.length === 0) voices.value = all
-}
 </script>
 
 <template>
-  <div class="flex flex-col h-[calc(100vh-4rem)] max-w-3xl mx-auto">
+  <div class="flex flex-col h-[calc(100dvh-4rem)] max-w-3xl mx-auto w-full">
     <!-- Header -->
-    <div class="px-6 py-3 border-b border-base-300 shrink-0 space-y-2">
-      <div class="flex items-center justify-between gap-4">
-        <div class="min-w-0">
-          <h1 class="text-xl font-bold truncate">
+    <div class="px-3 md:px-6 py-2 md:py-3 border-b border-base-300 shrink-0 space-y-2">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+        <div class="min-w-0 flex-1">
+          <h1 class="text-lg md:text-xl font-bold truncate pr-2">
             <template v-if="loadedSessionId">查看记录</template>
             <template v-else>{{ isInterviewMode ? '模拟面试' : 'AI 面试助手' }}</template>
           </h1>
-          <p class="text-sm text-base-content/60 truncate">
+          <p class="text-xs md:text-sm text-base-content/60 truncate">
             <template v-if="loadedSessionId">只读回放，不可继续对话</template>
             <template v-else-if="isInterviewMode">
               正在面试：{{ currentNote.title }}（{{ currentNote.company }} · {{ currentNote.position }}）
@@ -388,7 +397,7 @@ function loadVoices() {
           </p>
         </div>
 
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="flex items-center gap-1 md:gap-2 flex-wrap justify-end">
           <!-- Voice gender selector -->
           <div class="join join-xs">
             <button
@@ -409,7 +418,7 @@ function loadVoices() {
 
           <!-- Note selector -->
           <select
-            class="select select-bordered select-xs w-32"
+            class="select select-bordered select-xs w-24 md:w-32"
             :disabled="!!loadedSessionId"
             @change="selectNote(($event.target).value)"
             :value="interviewNoteId || ''"
@@ -420,11 +429,10 @@ function loadVoices() {
 
           <!-- History dropdown -->
           <div class="dropdown dropdown-end">
-            <button tabindex="0" class="btn btn-ghost btn-xs">
-              {{ sessions.filter((s) => !loadedSessionId || s.id !== loadedSessionId).length ? '历史' : '历史' }}
+            <button tabindex="0" class="btn btn-ghost btn-xs px-1 md:px-2">
               记录
             </button>
-            <ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-10 w-72 p-2 shadow mt-1 max-h-72 overflow-y-auto flex-nowrap">
+            <ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-50 w-60 md:w-72 p-2 shadow mt-1 max-h-72 overflow-y-auto flex-nowrap">
               <li v-if="sessions.length === 0" class="text-xs text-base-content/40 px-3 py-2">暂无记录</li>
               <li
                 v-for="s in sessions"
@@ -448,14 +456,14 @@ function loadVoices() {
             </button>
             <button
               v-if="hasMessages"
-              class="btn btn-ghost btn-xs text-warning"
+              class="btn btn-ghost btn-xs text-warning px-1 md:px-2"
               @click="clearConversation"
             >
               清空
             </button>
           </template>
           <button v-else class="btn btn-outline btn-xs" @click="loadSession('back')">
-            返回对话
+            返回
           </button>
         </div>
       </div>
@@ -469,7 +477,7 @@ function loadVoices() {
     <!-- Char length warning -->
     <div
       v-if="charWarningLevel"
-      class="px-6 py-2 text-sm flex items-center justify-between gap-4"
+      class="px-3 md:px-6 py-2 text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2"
       :class="charWarningLevel === 'danger' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'"
     >
       <span>
@@ -486,7 +494,7 @@ function loadVoices() {
     </div>
 
     <!-- Messages -->
-    <div ref="chatContainer" class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+    <div ref="chatContainer" class="flex-1 overflow-y-auto px-3 md:px-6 py-2 md:py-4 space-y-3 md:space-y-4">
       <div
         v-for="(msg, i) in messages"
         :key="i"
@@ -494,9 +502,9 @@ function loadVoices() {
         :class="msg.role === 'user' ? 'chat-end' : 'chat-start'"
       >
         <div class="chat-image avatar">
-          <div class="w-10 rounded-full">
+          <div class="w-8 md:w-10 rounded-full">
             <span
-              class="flex items-center justify-center w-full h-full text-white text-sm font-medium"
+              class="flex items-center justify-center w-full h-full text-white text-xs md:text-sm font-medium"
               :class="msg.role === 'user' ? 'bg-primary' : 'bg-secondary'"
             >
               {{ msg.role === 'user' ? '我' : (isInterviewMode ? '官' : 'AI') }}
@@ -504,7 +512,7 @@ function loadVoices() {
           </div>
         </div>
         <div
-          class="chat-bubble"
+          class="chat-bubble text-sm md:text-base max-w-[85vw] md:max-w-none"
           :class="msg.role === 'user' ? 'chat-bubble-primary' : ''"
         >
           {{ msg.content }}
@@ -541,7 +549,7 @@ function loadVoices() {
               <line x1="9" y1="9" x2="15" y2="15" />
               <line x1="15" y1="9" x2="9" y2="15" />
             </svg>
-            <span>{{ speakingIndex === i ? '停止' : '朗读' }}</span>
+            <span class="text-xs md:text-sm">{{ speakingIndex === i ? '停止' : '朗读' }}</span>
           </button>
         </div>
       </div>
@@ -549,8 +557,8 @@ function loadVoices() {
       <!-- Loading -->
       <div v-if="sending" class="chat chat-start">
         <div class="chat-image avatar">
-          <div class="w-10 rounded-full">
-            <span class="flex items-center justify-center w-full h-full bg-secondary text-white text-sm font-medium">
+          <div class="w-8 md:w-10 rounded-full">
+            <span class="flex items-center justify-center w-full h-full bg-secondary text-white text-xs md:text-sm font-medium">
               {{ isInterviewMode ? '官' : 'AI' }}
             </span>
           </div>
@@ -562,21 +570,21 @@ function loadVoices() {
     </div>
 
     <!-- Input -->
-    <div class="px-6 py-4 border-t border-base-300 shrink-0">
-      <div v-if="isReadOnly" class="text-center text-sm text-base-content/40 py-2">
-        这是已保存的记录，只读回放。点击"返回对话"继续聊天。
+    <div class="px-3 md:px-6 py-2 md:py-4 border-t border-base-300 shrink-0">
+      <div v-if="isReadOnly" class="text-center text-xs md:text-sm text-base-content/40 py-2">
+        这是已保存的记录，只读回放。点击"返回"继续聊天。
       </div>
       <div v-else class="flex gap-2">
         <input
           v-model="inputText"
           type="text"
           :placeholder="isInterviewMode ? '输入你的回答...' : '输入你的问题...'"
-          class="input input-bordered flex-1"
+          class="input input-bordered flex-1 min-w-0 text-sm md:text-base"
           :disabled="sending"
           @keydown="handleKeydown"
         />
         <button
-          class="btn btn-primary"
+          class="btn btn-primary btn-sm md:btn-md"
           :disabled="!inputText.trim() || sending"
           @click="send"
         >

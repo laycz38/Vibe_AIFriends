@@ -103,6 +103,11 @@ REST_FRAMEWORK = {
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
 DEEPSEEK_BASE_URL = os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com')
 
+# Aliyun NLS (Natural Language Processing) TTS
+ALIYUN_NLS_ACCESS_KEY_ID = os.getenv('ALIYUN_NLS_ACCESS_KEY_ID', '')
+ALIYUN_NLS_ACCESS_KEY_SECRET = os.getenv('ALIYUN_NLS_ACCESS_KEY_SECRET', '')
+ALIYUN_NLS_APPKEY = os.getenv('ALIYUN_NLS_APPKEY', '')
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=2),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
