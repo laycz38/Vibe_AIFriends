@@ -22,7 +22,6 @@ const startRecording = async () => {
     vadInstance = await MicVAD.new({
       model: 'v5',
       baseAssetPath: VAD_BASE,
-      onnxWASMBasePath: VAD_BASE,
       onSpeechStart: () => {
         console.log('[VAD] Speech started')
         isSpeaking.value = true
@@ -39,8 +38,7 @@ const startRecording = async () => {
         isSpeaking.value = false
       },
       ortConfig: (ort) => {
-        ort.env.wasm.wasmPaths = VAD_BASE
-        ort.env.logLevel = 'verbose'
+        ort.env.logLevel = 'error'
       },
       positiveSpeechThreshold: 0.8,
       negativeSpeechThreshold: 0.65,
