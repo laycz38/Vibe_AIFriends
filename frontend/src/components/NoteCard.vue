@@ -142,7 +142,7 @@ function difficultyStyle(level) {
       <div class="flex items-center gap-2 text-base-content/40">
         <button class="btn btn-ghost btn-xs p-0 min-h-0 h-auto" @click.prevent="toggleFavorite">
           <svg class="size-4" viewBox="0 0 24 24" :fill="note.favorited ? '#f59e0b' : 'none'" stroke="currentColor" stroke-width="2">
-            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
           </svg>
         </button>
         <button class="btn btn-ghost btn-xs p-0 min-h-0 h-auto gap-1" @click.prevent="toggleLike">

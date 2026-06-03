@@ -22,6 +22,37 @@ const commentLoading = ref(false)
 const errorMessage = ref('')
 const note = ref(null)
 const commentTextarea = ref(null)
+const showCoverModal = ref(false)
+const coverScale = ref(1)
+const coverPosition = ref({ x: 0, y: 0 })
+
+function openCoverModal() {
+  coverScale.value = 1
+  coverPosition.value = { x: 0, y: 0 }
+  showCoverModal.value = true
+}
+
+function closeCoverModal() {
+  showCoverModal.value = false
+  coverScale.value = 1
+  coverPosition.value = { x: 0, y: 0 }
+}
+
+function zoomCover(delta) {
+  coverScale.value = Math.max(0.5, Math.min(5, coverScale.value + delta * 0.002))
+  if (coverScale.value <= 1) {
+    coverPosition.value = { x: 0, y: 0 }
+  }
+}
+
+function toggleCoverZoom() {
+  if (coverScale.value > 1.1) {
+    coverScale.value = 1
+    coverPosition.value = { x: 0, y: 0 }
+  } else {
+    coverScale.value = 2
+  }
+}
 
 const commentForm = reactive({
   content: '',
@@ -188,7 +219,12 @@ watch(() => props.note_id, () => {
 
     <template v-else-if="note">
       <div class="card w-full max-w-180 bg-base-200 shadow-sm mt-4">
-        <img :src="note.image || DEFAULT_COVER" :alt="note.title" class="w-full h-64 object-cover rounded-t-2xl" />
+        <img
+          :src="note.image || DEFAULT_COVER"
+          :alt="note.title"
+          class="w-full h-64 object-cover rounded-t-2xl cursor-pointer hover:opacity-90 transition-opacity"
+          @click="openCoverModal"
+        />
         <div class="card-body">
           <div class="flex items-center gap-2 mb-4">
             <span class="badge badge-neutral">{{ note.company }}</span>
@@ -320,5 +356,39 @@ watch(() => props.note_id, () => {
         </div>
       </div>
     </template>
+
+    <!-- Cover image lightbox -->
+    <div
+      v-if="showCoverModal && (note.image || DEFAULT_COVER)"
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 overflow-hidden"
+      @click.self="closeCoverModal"
+      @wheel.prevent="zoomCover($event.deltaY)"
+    >
+      <!-- Top toolbar -->
+      <div class="absolute top-4 left-4 right-4 flex items-center justify-between gap-2 z-10">
+        <div class="flex items-center gap-2">
+          <button class="btn btn-circle btn-ghost btn-sm text-white text-lg" @click="zoomCover(-100)">+</button>
+          <span class="text-white text-sm font-mono w-12 text-center">{{ Math.round(coverScale * 100) }}%</span>
+          <button class="btn btn-circle btn-ghost btn-sm text-white text-lg" @click="zoomCover(100)">−</button>
+          <button class="btn btn-ghost btn-sm text-white text-xs" @click="coverScale = 1; coverPosition = { x: 0, y: 0 }">重置</button>
+        </div>
+        <button class="btn btn-circle btn-ghost text-white text-2xl" @click="closeCoverModal">✕</button>
+      </div>
+
+      <img
+        :src="note.image || DEFAULT_COVER"
+        :alt="note.title"
+        class="rounded-lg select-none"
+        :class="coverScale > 1 ? 'cursor-grab' : 'cursor-pointer'"
+        :style="{
+          transform: `scale(${coverScale}) translate(${coverPosition.x / coverScale}px, ${coverPosition.y / coverScale}px)`,
+          maxWidth: coverScale <= 1 ? '100%' : 'none',
+          maxHeight: coverScale <= 1 ? '90vh' : 'none',
+          objectFit: 'contain',
+          transition: coverScale <= 1 ? 'transform 0.2s ease-out' : 'none',
+        }"
+        @click="toggleCoverZoom"
+      />
+    </div>
   </div>
 </template>

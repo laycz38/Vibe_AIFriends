@@ -143,5 +143,5 @@ The `/nlp-notes/` route (`views/notes/NLPNotesIndex.vue`) provides an interactiv
 ## Common pitfalls
 
 - **401 errors in browser console** on pages that don't require auth: expected noise. `App.vue` calls `pullUserInfo()` on every page load; if the user isn't logged in, the info and refresh_token endpoints return 401. This does NOT block public pages from working.
-- **Frontend changes not showing on :8000**: you ran `npm run dev` but forgot `npm run build`. Django serves the last build output, not the dev server.
+- **Frontend changes not showing on :8000**: you ran `npm run dev` but forgot `npm run build`. Django serves the last build output, not the dev server. **Rule: after every frontend source change, run `npm run build` before claiming the work is done on :8000.**
 - **`postMessage` + Vue reactivity DataCloneError**: Vue 3 `ref()` wraps data in JavaScript Proxy objects. `window.postMessage()` uses the structured clone algorithm which CANNOT clone Proxy objects — it throws `DataCloneError: Failed to execute 'postMessage' on 'Window': [object Array] could not be cloned.` Always deep-clone reactive data before sending via postMessage: `JSON.parse(JSON.stringify(reactiveData))`.
