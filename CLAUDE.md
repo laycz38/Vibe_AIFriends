@@ -124,7 +124,11 @@ The `/nlp-notes/` route (`views/notes/NLPNotesIndex.vue`) provides an interactiv
 3. Parent shows floating "添加批注" button → user types annotation → saved to `InlineAnnotation` model
 4. Parent sends annotation data back to iframe via `postMessage({type: 'render-annotations', ...})`
 5. Injected script uses `TreeWalker` to find text nodes, `splitText()` + `<mark>` wrapping for highlights
-6. Hovering shows tooltip with annotation content; clicking opens editor in the side panel
+6. Hovering shows tooltip with annotation content; clicking opens editor in the side panel (scrolls to annotation in list + sends `focus-annotation` back to iframe for pulse highlight)
+
+**Image annotations**: supported via `annotation_type` field. Clicking an image in the iframe sends `{type: 'image-clicked', src, alt}` → parent shows "为此图片添加批注" → saved with `annotation_type='image'` → iframe renders a badge overlay on the image.
+
+**Debugging**: content script sends `cs-debug` messages back to parent (logged to console). A green debug banner appears in the top-left of the iframe showing render stats.
 
 **API endpoints** (`web/views/study/`):
 - `GET /api/study-notes/?page_url=xxx` — get page note
@@ -140,3 +144,4 @@ The `/nlp-notes/` route (`views/notes/NLPNotesIndex.vue`) provides an interactiv
 
 - **401 errors in browser console** on pages that don't require auth: expected noise. `App.vue` calls `pullUserInfo()` on every page load; if the user isn't logged in, the info and refresh_token endpoints return 401. This does NOT block public pages from working.
 - **Frontend changes not showing on :8000**: you ran `npm run dev` but forgot `npm run build`. Django serves the last build output, not the dev server.
+- **`postMessage` + Vue reactivity DataCloneError**: Vue 3 `ref()` wraps data in JavaScript Proxy objects. `window.postMessage()` uses the structured clone algorithm which CANNOT clone Proxy objects — it throws `DataCloneError: Failed to execute 'postMessage' on 'Window': [object Array] could not be cloned.` Always deep-clone reactive data before sending via postMessage: `JSON.parse(JSON.stringify(reactiveData))`.

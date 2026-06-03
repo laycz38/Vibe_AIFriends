@@ -19,9 +19,11 @@ const noteSaveStatus = ref('')
 
 // Inline annotations
 const annotations = ref([])
-const selectedText = ref(null) // { text, contextBefore, contextAfter }
-const editingAnno = ref(null)  // { id?, content, selected_text } — null = not editing, no id = creating new
+const selectedText = ref(null) // { text, contextBefore, contextAfter } — text selection
+const imageClicked = ref(null) // { src, alt } — image click
+const editingAnno = ref(null)  // { id?, content, selected_text, annotation_type } — null = not editing
 const annoSaveStatus = ref('')
+const annoListRef = ref(null)  // container for scrolling to annotation items
 
 let pollTimer = null
 let pageSaveTimer = null
@@ -69,7 +71,7 @@ function injectContentScript() {
   const iframe = iframeRef.value
   if (!iframe?.contentDocument) return
   const doc = iframe.contentDocument
-  if (doc.getElementById('aifriends-cs')) return // already injected
+  if (doc.getElementById('aifriends-cs')) return
   const script = doc.createElement('script')
   script.id = 'aifriends-cs'
   script.textContent = CONTENT_SCRIPT
@@ -79,7 +81,7 @@ function injectContentScript() {
 // --- Load data for current page ---
 
 async function loadPageData() {
-  loadPageNote()
+  await loadPageNote()
   await loadAnnotations()
   sendAnnotationsToIframe()
 }
@@ -117,9 +119,11 @@ async function loadAnnotations() {
 function sendAnnotationsToIframe() {
   const iframe = iframeRef.value
   if (!iframe?.contentWindow) return
+  // Deep clone to strip Vue reactivity proxies (postMessage can't clone Proxy)
+  const plain = JSON.parse(JSON.stringify(annotations.value))
   iframe.contentWindow.postMessage({
     type: 'render-annotations',
-    annotations: annotations.value,
+    annotations: plain,
   }, '*')
 }
 
@@ -147,11 +151,15 @@ watch(noteContent, () => {
 // --- Annotation CRUD ---
 
 function startNewAnnotation() {
-  if (!selectedText.value) return
+  const source = selectedText.value || imageClicked.value
+  if (!source) return
+
+  const isImage = !!imageClicked.value
   editingAnno.value = {
     id: null,
     content: '',
-    selected_text: selectedText.value.text,
+    selected_text: isImage ? imageClicked.value.src : selectedText.value.text,
+    annotation_type: isImage ? 'image' : 'text',
   }
   annoSaveStatus.value = ''
   panelOpen.value = true
@@ -163,6 +171,7 @@ function startEditAnnotation(ann) {
     id: ann.id,
     content: ann.content,
     selected_text: ann.selected_text,
+    annotation_type: ann.annotation_type || 'text',
   }
   lastSavedAnnoContent = ann.content
   annoSaveStatus.value = ''
@@ -173,32 +182,45 @@ function startEditAnnotation(ann) {
 function cancelEditAnnotation() {
   editingAnno.value = null
   annoSaveStatus.value = ''
+  selectedText.value = null
+  imageClicked.value = null
 }
 
 async function saveAnnotation() {
   if (!editingAnno.value || !isLoggedIn.value) return
   const anno = editingAnno.value
   annoSaveStatus.value = 'saving'
+
+  let apiSuccess = false
   try {
     if (anno.id) {
-      // Update existing
       await api.put(`/api/inline-annotations/${anno.id}/`, { content: anno.content })
     } else {
-      // Create new
+      const source = selectedText.value || imageClicked.value
       await api.post('/api/inline-annotations/create/', {
         page_url: currentPageUrl.value,
-        selected_text: selectedText.value.text,
-        context_before: selectedText.value.contextBefore,
-        context_after: selectedText.value.contextAfter,
+        annotation_type: anno.annotation_type,
+        selected_text: anno.selected_text,
+        context_before: source?.contextBefore || '',
+        context_after: source?.contextAfter || '',
         content: anno.content,
       })
     }
+    apiSuccess = true
+  } catch (_) {
+    annoSaveStatus.value = 'unsaved'
+    return
+  }
+
+  // Post-save operations — don't affect save status
+  editingAnno.value = null
+  selectedText.value = null
+  imageClicked.value = null
+  annoSaveStatus.value = 'saved'
+  try {
     await loadAnnotations()
     sendAnnotationsToIframe()
-    editingAnno.value = null
-    selectedText.value = null
-    annoSaveStatus.value = ''
-  } catch (_) { annoSaveStatus.value = 'unsaved' }
+  } catch (_) { /* highlight refresh failed but save succeeded */ }
 }
 
 async function deleteAnnotation(id) {
@@ -227,15 +249,55 @@ function onIframeMessage(e) {
         contextBefore: e.data.contextBefore,
         contextAfter: e.data.contextAfter,
       }
+      imageClicked.value = null
       break
     case 'selection-cleared':
-      // Don't clear if we're currently editing
-      if (!editingAnno.value) selectedText.value = null
+      if (!editingAnno.value) {
+        selectedText.value = null
+        imageClicked.value = null
+      }
+      break
+    case 'image-clicked':
+      if (!isLoggedIn.value) break
+      imageClicked.value = {
+        src: e.data.src,
+        alt: e.data.alt,
+        contextBefore: '',
+        contextAfter: '',
+      }
+      selectedText.value = null
       break
     case 'annotation-click':
-      const ann = annotations.value.find(a => a.id === e.data.id)
-      if (ann) startEditAnnotation(ann)
+      handleAnnotationClick(e.data.id)
       break
+    case 'cs-debug':
+      console.log('[CS Debug]', e.data.msg, e.data)
+      break
+  }
+}
+
+async function handleAnnotationClick(id) {
+  // Open panel, switch to annotations tab
+  panelOpen.value = true
+  activeTab.value = 'annotations'
+
+  // Find and edit the annotation
+  const ann = annotations.value.find(a => a.id === id)
+  if (ann) startEditAnnotation(ann)
+
+  // Scroll to annotation in the list
+  await nextTick()
+  const el = annoListRef.value?.querySelector(`[data-anno-id="${id}"]`)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('bg-base-200')
+    setTimeout(() => el.classList.remove('bg-base-200'), 2000)
+  }
+
+  // Send focus back to iframe to highlight the element
+  const iframe = iframeRef.value
+  if (iframe?.contentWindow) {
+    iframe.contentWindow.postMessage({ type: 'focus-annotation', id }, '*')
   }
 }
 
@@ -331,7 +393,12 @@ onUnmounted(() => {
           <!-- Editing form -->
           <div v-if="editingAnno" class="border-b border-base-200 p-3 shrink-0">
             <div class="text-xs text-base-content/60 mb-2 p-2 bg-base-200 rounded italic">
-              "{{ editingAnno.selected_text }}"
+              <template v-if="editingAnno.annotation_type === 'image'">
+                🖼 图片: {{ editingAnno.selected_text.split('/').pop() }}
+              </template>
+              <template v-else>
+                "{{ editingAnno.selected_text }}"
+              </template>
             </div>
             <textarea
               v-model="editingAnno.content"
@@ -355,19 +422,21 @@ onUnmounted(() => {
           </div>
 
           <!-- Annotation list -->
-          <div class="flex-1 overflow-y-auto">
+          <div ref="annoListRef" class="flex-1 overflow-y-auto">
             <div v-if="!annotations.length" class="p-4 text-center text-sm text-base-content/50">
-              选中页面中的文字，点击下方按钮添加批注
+              选中页面中的文字或图片，点击下方按钮添加批注
             </div>
             <div
               v-for="ann in annotations"
               :key="ann.id"
-              class="border-b border-base-200 p-3 cursor-pointer hover:bg-base-200 transition-colors"
+              :data-anno-id="ann.id"
+              class="border-b border-base-200 p-3 cursor-pointer hover:bg-base-200 transition-colors duration-300"
               :class="{ 'bg-base-200': editingAnno?.id === ann.id }"
               @click="startEditAnnotation(ann)"
             >
               <div class="text-xs text-warning italic mb-1 truncate">
-                "{{ ann.selected_text }}"
+                <template v-if="ann.annotation_type === 'image'">🖼 {{ ann.selected_text.split('/').pop() }}</template>
+                <template v-else>"{{ ann.selected_text }}"</template>
               </div>
               <div class="text-sm text-base-content leading-relaxed line-clamp-3">
                 {{ ann.content || '(空批注)' }}
@@ -391,17 +460,35 @@ onUnmounted(() => {
               为此文字添加批注
             </button>
           </div>
+
+          <!-- Image clicked hint -->
+          <div v-if="imageClicked && !editingAnno" class="shrink-0 border-t border-base-200 p-3">
+            <div class="text-xs text-base-content/60 mb-2 p-2 bg-info/10 rounded italic">
+              🖼 已选中图片: {{ imageClicked.src.split('/').pop() }}
+            </div>
+            <button class="btn btn-sm btn-info w-full" @click="startNewAnnotation">
+              为此图片添加批注
+            </button>
+          </div>
         </template>
       </template>
     </div>
 
-    <!-- Add annotation floating button (appears when text is selected) -->
+    <!-- Floating action buttons (desktop, when something is selected) -->
     <div
       v-if="selectedText && !editingAnno && isLoggedIn"
       class="hidden sm:block fixed bottom-8 left-1/2 -translate-x-1/2 z-40 animate-bounce"
     >
       <button class="btn btn-primary shadow-lg" @click="startNewAnnotation">
         为此文字添加批注
+      </button>
+    </div>
+    <div
+      v-if="imageClicked && !editingAnno && isLoggedIn"
+      class="hidden sm:block fixed bottom-8 left-1/2 -translate-x-1/2 z-40 animate-bounce"
+    >
+      <button class="btn btn-info shadow-lg" @click="startNewAnnotation">
+        为此图片添加批注
       </button>
     </div>
 
@@ -417,6 +504,15 @@ onUnmounted(() => {
       >
         <button class="btn btn-primary btn-sm w-full shadow-lg" @click="mobilePanelOpen = true; startNewAnnotation()">
           为选中文字添加批注
+        </button>
+      </div>
+      <!-- Mobile image action -->
+      <div
+        v-if="imageClicked && !editingAnno && isLoggedIn && !mobilePanelOpen"
+        class="fixed bottom-20 left-4 right-4 z-40"
+      >
+        <button class="btn btn-info btn-sm w-full shadow-lg" @click="mobilePanelOpen = true; startNewAnnotation()">
+          为选中图片添加批注
         </button>
       </div>
       <div v-if="mobilePanelOpen" class="fixed inset-x-0 bottom-0 z-40 bg-base-100 rounded-t-2xl shadow-2xl" style="max-height: 60vh;">

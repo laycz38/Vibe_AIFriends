@@ -115,6 +115,7 @@ class InlineAnnotation(models.Model):
     selected_text = models.TextField()
     context_before = models.TextField()
     context_after = models.TextField()
+    annotation_type = models.CharField(max_length=10, default='text')  # 'text' or 'image'
     content = models.TextField(blank=True, default='')
     color = models.CharField(max_length=20, default='yellow')
     created_at = models.DateTimeField(auto_now_add=True)

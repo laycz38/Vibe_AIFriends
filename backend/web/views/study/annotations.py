@@ -10,6 +10,7 @@ def serialize_annotation(ann):
     return {
         'id': ann.id,
         'page_url': ann.page_url,
+        'annotation_type': ann.annotation_type,
         'selected_text': ann.selected_text,
         'context_before': ann.context_before,
         'context_after': ann.context_after,
@@ -37,6 +38,7 @@ def list_annotations(request):
 @permission_classes([IsAuthenticated])
 def create_annotation(request):
     page_url = str(request.data.get('page_url', '')).strip()
+    annotation_type = str(request.data.get('annotation_type', 'text'))
     selected_text = str(request.data.get('selected_text', ''))
     context_before = str(request.data.get('context_before', ''))
     context_after = str(request.data.get('context_after', ''))
@@ -49,6 +51,7 @@ def create_annotation(request):
     ann = InlineAnnotation.objects.create(
         user=request.user,
         page_url=page_url,
+        annotation_type=annotation_type,
         selected_text=selected_text,
         context_before=context_before,
         context_after=context_after,
