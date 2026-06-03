@@ -6,6 +6,7 @@ import HomepageIcon from './icons/HomepageIcon.vue'
 import FriendIcon from './icons/FriendIcon.vue'
 import CreateIcon from './icons/CreateIcon.vue'
 import StarIcon from './icons/StarIcon.vue'
+import NotebookIcon from './icons/NotebookIcon.vue'
 import SearchIcon from './icons/SearchIcon.vue'
 import { useUserStore } from '@/stores/user.js'
 import UserMenu from './UserMenu.vue'
@@ -131,6 +132,18 @@ function handleSearch() {
             >
               <StarIcon />
               <span class="is-drawer-close:hidden text-base ml-2 whitespace-nowrap">我的收藏</span>
+            </RouterLink>
+          </li>
+          <li>
+            <RouterLink
+              :to="{ name: 'nlp-notes' }"
+              active-class="menu-active"
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right py-3"
+              data-tip="NLP笔记"
+              @click="closeDrawer"
+            >
+              <NotebookIcon />
+              <span class="is-drawer-close:hidden text-base ml-2 whitespace-nowrap">NLP笔记</span>
             </RouterLink>
           </li>
         </ul>

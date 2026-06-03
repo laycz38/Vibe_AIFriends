@@ -37,6 +37,8 @@ Single Django app `web` contains everything — models, views, and URLs. The pro
 - `InterviewNoteLike` — unique constraint on (user, note), toggle pattern
 - `InterviewNoteFavorite` — same toggle pattern with unique constraint
 - `InterviewNoteComment` — FK to user + note, ordered by `-created_at`
+- `StudyNote` — unique constraint on (user, page_url), stores per-page study notes for the NLP notes feature
+- `InlineAnnotation` — per-character-range annotations within NLP pages, anchored by (selected_text, context_before, context_after), used for Word-style inline commenting
 
 Images are stored as **base64 strings in TextField columns**, not as file uploads. The `process_base64()` utility in `web/views/image_utils.py` handles compression.
 
@@ -68,11 +70,18 @@ Images are stored as **base64 strings in TextField columns**, not as file upload
 
 **Settings**: `DEBUG` and `SECRET_KEY` read from environment variables. CORS allows localhost:5173 and the production domain. Timezone is Asia/Shanghai.
 
+**Critical: `.env` file** at `backend/.env`:
+- `DJANGO_DEBUG=True` is REQUIRED for local development. Without it, Django's `runserver` does NOT serve static files (returns 404 for `/static/...`), breaking iframes, images, and frontend assets.
+- `DASHSCOPE_API_KEY` — Aliyun CosyVoice TTS
+- `DEEPSEEK_API_KEY` — DeepSeek AI chat
+
 ### Frontend (Vue 3)
 
 **Key dependencies**: Vue 3 (Composition API, `<script setup>`), Pinia (user store), Vue Router 5, axios, daisyUI + TailwindCSS v4.
 
 **Build output**: Vite builds to `../backend/static/frontend/` (configured in `vite.config.js`). Dev server is fixed at port 5173.
+
+**Important**: After any frontend source change, run `npm run build` for Django to serve the updated SPA. `npm run dev` only starts HMR on port 5173 — it does NOT update what Django serves on port 8000. The typical workflow: `npm run dev` during active frontend work (access via :5173), `npm run build` when ready to test through Django (:8000).
 
 **State management** — single Pinia store (`stores/user.js`):
 - State: `accessToken`, `user` object, `hasPulledUserInfo` boolean
@@ -94,3 +103,40 @@ Images are stored as **base64 strings in TextField columns**, not as file upload
 **Layout**: `App.vue` wraps `<RouterView />` in `<NavBar>`. NavBar uses daisyUI's drawer component (responsive: `drawer-open` on `lg+`, toggle on mobile) with sidebar nav links and a top header bar with user dropdown.
 
 **daisyUI/Tailwind v4 setup**: Tailwind v4 is imported via the Vite plugin (`@tailwindcss/vite`), not PostCSS. daisyUI v5 is imported in `main.css`.
+
+## Static content
+
+The `backend/static/` directory serves static files under `/static/` in DEBUG mode:
+- `frontend/` — Vite build output (managed by `npm run build`)
+- `nlp_notes/` — NLP study notes (MkDocs static site), accessed via `/nlp-notes/` route which renders an iframe pointing to `/static/nlp_notes/index.html`
+
+## NLP 学习笔记系统
+
+The `/nlp-notes/` route (`views/notes/NLPNotesIndex.vue`) provides an interactive study environment:
+
+**Layout**: Split view — iframe (NLP content) on the left, collapsible notes panel on the right with two tabs:
+- **页面笔记** — per-page freeform notes (StudyNote model), auto-saves via debounce
+- **批注** — Word-style inline annotations (InlineAnnotation model)
+
+**Inline annotation workflow**:
+1. `contentScript.js` is injected as a `<script>` tag into the same-origin iframe on each page load
+2. Script detects text selection via `mouseup` → sends `postMessage({type: 'text-selected', ...})` to parent
+3. Parent shows floating "添加批注" button → user types annotation → saved to `InlineAnnotation` model
+4. Parent sends annotation data back to iframe via `postMessage({type: 'render-annotations', ...})`
+5. Injected script uses `TreeWalker` to find text nodes, `splitText()` + `<mark>` wrapping for highlights
+6. Hovering shows tooltip with annotation content; clicking opens editor in the side panel
+
+**API endpoints** (`web/views/study/`):
+- `GET /api/study-notes/?page_url=xxx` — get page note
+- `POST /api/study-notes/save/` — upsert page note
+- `GET /api/inline-annotations/?page_url=xxx` — list annotations for page
+- `POST /api/inline-annotations/create/` — create annotation
+- `PUT /api/inline-annotations/<id>/` — update annotation
+- `DELETE /api/inline-annotations/<id>/delete/` — delete annotation
+
+**Python environment**: Local dev uses conda env `vibe_AIFriends` at `D:/coding_software/anaconda3/envs/vibe_AIFriends/python.exe`.
+
+## Common pitfalls
+
+- **401 errors in browser console** on pages that don't require auth: expected noise. `App.vue` calls `pullUserInfo()` on every page load; if the user isn't logged in, the info and refresh_token endpoints return 401. This does NOT block public pages from working.
+- **Frontend changes not showing on :8000**: you ran `npm run dev` but forgot `npm run build`. Django serves the last build output, not the dev server.

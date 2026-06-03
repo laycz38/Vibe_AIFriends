@@ -26,6 +26,11 @@ from web.views.chat.sessions import list_sessions, get_session, save_session, de
 from web.views.tts.synthesize import synthesize_speech
 from web.views.tts.stream import synthesize_stream_view
 from web.views.tts.asr import asr_view
+from web.views.study.get_note import get_note as get_study_note
+from web.views.study.save_note import save_note as save_study_note
+from web.views.study.annotations import (
+    list_annotations, create_annotation, update_annotation, delete_annotation
+)
 
 urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -55,6 +60,12 @@ urlpatterns = [
     path('api/tts/synthesize/', synthesize_speech, name='tts_synthesize'),
     path('api/tts/stream/', synthesize_stream_view, name='tts_stream'),
     path('api/tts/asr/', asr_view, name='tts_asr'),
+    path('api/study-notes/', get_study_note, name='study_note_get'),
+    path('api/study-notes/save/', save_study_note, name='study_note_save'),
+    path('api/inline-annotations/', list_annotations, name='anno_list'),
+    path('api/inline-annotations/create/', create_annotation, name='anno_create'),
+    path('api/inline-annotations/<int:annotation_id>/', update_annotation, name='anno_update'),
+    path('api/inline-annotations/<int:annotation_id>/delete/', delete_annotation, name='anno_delete'),
     path('', index, name='index'),
     re_path(r'^(?!media/|static/|assets/).*$', index, name='frontend_fallback'),
 ]

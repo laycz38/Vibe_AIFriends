@@ -18,13 +18,15 @@ c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 c.connect(host, username=username, password=password, timeout=10)
 ```
 
-本地 Python 环境：`D:/coding_software/anaconda3/envs/Claude/python.exe`
+本地 Python 环境：`D:/coding_software/anaconda3/envs/Claude/python.exe`（paramiko 部署用）
+项目 Python 环境：`D:/coding_software/anaconda3/envs/vibe_AIFriends/python.exe`（Django 开发用）
 
 ## 项目概述
 
 - 后端：Django 6.0 + DRF + SimpleJWT + SQLite
 - 前端：Vue 3 + Vite + TailwindCSS v4 + daisyUI v5
 - 部署方式：Nginx → Gunicorn(Unix socket) → Django
+- NLP 学习笔记：MkDocs 静态站点 + iframe 嵌入 + 批注系统（StudyNote + InlineAnnotation 模型）
 
 ## 项目文件路径
 

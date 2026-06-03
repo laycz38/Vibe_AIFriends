@@ -10,6 +10,7 @@ import RegisterIndex from '../views/user/account/RegisterIndex.vue'
 import SpaceIndex from '../views/user/space/SpaceIndex.vue'
 import ProfileIndex from '../views/profile/ProfileIndex.vue'
 import FavoriteIndex from '../views/favorite/FavoriteIndex.vue'
+import NLPNotesIndex from '../views/notes/NLPNotesIndex.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -75,6 +76,11 @@ const router = createRouter({
       meta: {
         requiresAuth: true,
       },
+    },
+    {
+      path: '/nlp-notes/',
+      name: 'nlp-notes',
+      component: NLPNotesIndex,
     },
     {
       path: '/:pathMatch(.*)*',
