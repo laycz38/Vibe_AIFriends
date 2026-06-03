@@ -6,18 +6,6 @@ export const CONTENT_SCRIPT = `
 (function() {
   'use strict';
 
-  // --- Debug: notify parent that script loaded ---
-  window.parent.postMessage({ type: 'cs-debug', msg: 'content-script-loaded', url: window.location.href }, '*');
-
-  // --- Debug banner in iframe ---
-  try {
-    var debugBanner = document.createElement('div');
-    debugBanner.id = 'aifriends-debug';
-    debugBanner.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:#10b981;color:#fff;padding:2px 8px;font-size:11px;font-family:monospace;border-radius:0 0 4px 0;pointer-events:none;';
-    debugBanner.textContent = 'CS loaded';
-    document.body.appendChild(debugBanner);
-  } catch(_) {}
-
   // --- Collect text nodes from the main content area ---
   function getTextNodes() {
     var root = document.querySelector('article, main, .md-content, [role="main"]') || document.body;
@@ -65,24 +53,92 @@ export const CONTENT_SCRIPT = `
     if (tooltip) tooltip.style.opacity = '0';
   }
 
-  // --- Remove existing highlights ---
+  // --- Inline image action bar (appears below clicked image) ---
+  var imageActionBar = null;
+  var imageActionTarget = null;
+
+  function showImageActionBar(img) {
+    hideImageActionBar();
+    var bar = document.createElement('div');
+    bar.className = 'aifriends-img-action';
+    bar.style.cssText =
+      'position:absolute;z-index:9999;' +
+      'display:flex;align-items:center;gap:6px;' +
+      'padding:5px 10px;' +
+      'background:#1d232a;color:#e2e8f0;' +
+      'border-radius:8px;font-size:12px;' +
+      'box-shadow:0 4px 16px rgba(0,0,0,0.35);' +
+      'white-space:nowrap;' +
+      'animation:aifriends-fadein 0.15s ease-out;';
+
+    var label = document.createElement('span');
+    label.textContent = '为此图片添加批注？';
+
+    var yesBtn = document.createElement('button');
+    yesBtn.textContent = '添加';
+    yesBtn.style.cssText = 'background:#6366f1;color:#fff;border:0;border-radius:5px;padding:3px 10px;cursor:pointer;font-size:12px;font-weight:500;';
+
+    var noBtn = document.createElement('button');
+    noBtn.textContent = '✕';
+    noBtn.style.cssText = 'background:transparent;color:#94a3b8;border:0;cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;';
+
+    yesBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      hideImageActionBar();
+      window.parent.postMessage({ type: 'image-clicked', src: img.src, alt: img.alt || '' }, '*');
+    });
+
+    noBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      hideImageActionBar();
+    });
+
+    bar.appendChild(label);
+    bar.appendChild(yesBtn);
+    bar.appendChild(noBtn);
+    document.body.appendChild(bar);
+
+    // Position below the image
+    var rect = img.getBoundingClientRect();
+    var left = Math.min(Math.max(rect.left + window.scrollX, 8), window.innerWidth - 240);
+    var top = rect.bottom + window.scrollY + 4;
+    // If would go off-screen, show above the image instead
+    if (rect.bottom + 40 > window.innerHeight) {
+      top = rect.top + window.scrollY - 36;
+    }
+    bar.style.left = left + 'px';
+    bar.style.top = top + 'px';
+
+    imageActionBar = bar;
+    imageActionTarget = img;
+  }
+
+  function hideImageActionBar() {
+    if (imageActionBar) {
+      imageActionBar.remove();
+      imageActionBar = null;
+      imageActionTarget = null;
+    }
+  }
+
+  // --- Remove existing highlights + image labels ---
   function removeHighlights() {
     document.querySelectorAll('.aifriends-anno').forEach(function(el) {
       var p = el.parentNode;
       if (p) { p.replaceChild(document.createTextNode(el.textContent), el); p.normalize(); }
     });
-    document.querySelectorAll('.aifriends-img-badge').forEach(function(el) { el.remove(); });
+    document.querySelectorAll('.aifriends-img-label').forEach(function(el) { el.remove(); });
   }
 
   // --- Color map ---
   function annoStyle(c) {
     var bg, fg;
     switch (c) {
-      case 'green':  bg = '#86efac'; fg = '#14532d'; break;
-      case 'blue':   bg = '#93c5fd'; fg = '#1e3a5f'; break;
-      case 'pink':   bg = '#fda4af'; fg = '#881337'; break;
-      case 'yellow': bg = '#fde047'; fg = '#713f12'; break;
-      default:       bg = '#f87171'; fg = '#7f1d1d'; break;
+      case 'green':  bg = '#bbf7d0'; fg = '#14532d'; break;
+      case 'blue':   bg = '#bfdbfe'; fg = '#1e3a5f'; break;
+      case 'pink':   bg = '#fecdd3'; fg = '#881337'; break;
+      case 'yellow': bg = '#fef08a'; fg = '#713f12'; break;
+      default:       bg = '#fecaca'; fg = '#7f1d1d'; break;
     }
     return { bg: bg, fg: fg };
   }
@@ -90,55 +146,34 @@ export const CONTENT_SCRIPT = `
   // --- Render text annotations as highlights ---
   function renderAnnotations(annotations) {
     removeHighlights();
-    if (!annotations || !annotations.length) {
-      window.parent.postMessage({ type: 'cs-debug', msg: 'render-skip: no annotations' }, '*');
-      return;
-    }
+    if (!annotations || !annotations.length) return;
 
     var textNodes = getTextNodes();
-    if (!textNodes.length) {
-      window.parent.postMessage({ type: 'cs-debug', msg: 'render-skip: no textNodes' }, '*');
-      return;
-    }
+    if (!textNodes.length) return;
 
     var fullText = textNodes.map(function(n) { return n.textContent; }).join('');
-    var renderedCount = 0;
 
     annotations.forEach(function(ann) {
       if (ann.annotation_type === 'image') {
-        renderImageBadge(ann);
-        renderedCount++;
+        renderImageLabel(ann);
         return;
       }
 
       // Try exact match with context first, then fall back to selected_text only
       var search = (ann.context_before || '') + ann.selected_text + (ann.context_after || '');
       var idx = fullText.indexOf(search);
-      var selStart, selEnd, matchType;
+      var selStart, selEnd;
 
       if (idx >= 0) {
         selStart = idx + (ann.context_before || '').length;
         selEnd = selStart + ann.selected_text.length;
-        matchType = 'context';
       } else {
-        // Fallback: match just the selected_text
         idx = fullText.indexOf(ann.selected_text);
-        if (idx < 0) {
-          window.parent.postMessage({
-            type: 'cs-debug',
-            msg: 'render-fail: text not found',
-            selected_text: ann.selected_text.slice(0, 60),
-            context_before_len: (ann.context_before || '').length,
-            fullText_len: fullText.length
-          }, '*');
-          return;
-        }
+        if (idx < 0) return;
         selStart = idx;
         selEnd = idx + ann.selected_text.length;
-        matchType = 'fallback';
       }
 
-      // Build offset map
       var off = 0;
       var nodeInfos = textNodes.map(function(n) {
         var len = n.textContent.length;
@@ -191,60 +226,55 @@ export const CONTENT_SCRIPT = `
         info.node = null;
         foundNode = true;
       });
-
-      if (foundNode) {
-        renderedCount++;
-      } else {
-        window.parent.postMessage({ type: 'cs-debug', msg: 'render-fail: no node matched offset', selStart: selStart, selEnd: selEnd }, '*');
-      }
     });
-
-    window.parent.postMessage({ type: 'cs-debug', msg: 'render-done', count: renderedCount, total: annotations.length }, '*');
-
-    // Update debug banner
-    var banner = document.getElementById('aifriends-debug');
-    if (banner) {
-      banner.textContent = 'CS: ' + renderedCount + '/' + annotations.length + ' rendered, ' + textNodes.length + ' textNodes';
-      banner.style.background = renderedCount > 0 ? '#10b981' : '#f59e0b';
-    }
   }
 
-  // --- Render image badge ---
-  function renderImageBadge(ann) {
+  // --- Render image annotation label (below the image) ---
+  function renderImageLabel(ann) {
     var imgs = document.querySelectorAll('img[src="' + ann.selected_text + '"]');
     if (!imgs.length) {
       var basename = ann.selected_text.split('/').pop();
       imgs = document.querySelectorAll('img[src$="' + basename + '"]');
     }
     var style = annoStyle(ann.color);
+
     imgs.forEach(function(img) {
-      if (img.parentNode.querySelector('.aifriends-img-badge[data-id="' + ann.id + '"]')) return;
+      // Check if label already exists for this annotation
+      var existing = img.parentNode.querySelector('.aifriends-img-label[data-id="' + ann.id + '"]');
+      if (existing) return;
 
-      var parent = img.parentNode;
-      var parentStyle = window.getComputedStyle(parent);
-      if (parentStyle.position === 'static') { parent.style.position = 'relative'; }
+      // If the image is inside a figure, place the label after the figure
+      var figure = img.closest('figure');
+      var anchor = figure || img;
 
-      var badge = document.createElement('span');
-      badge.className = 'aifriends-img-badge';
-      badge.dataset.id = ann.id;
-      badge.textContent = '\\uD83D\\uDCAC';
-      badge.style.cssText =
-        'position:absolute;top:4px;right:4px;' +
+      var label = document.createElement('div');
+      label.className = 'aifriends-img-label';
+      label.dataset.id = ann.id;
+      label.style.cssText =
+        'display:inline-flex;align-items:center;gap:4px;' +
+        'margin:4px 0 8px 0;padding:3px 12px;' +
         'background:' + style.bg + ' !important;' +
-        'border-radius:50%;width:24px;height:24px;' +
-        'display:flex;align-items:center;justify-content:center;' +
-        'font-size:13px;cursor:pointer;' +
-        'box-shadow:0 1px 4px rgba(0,0,0,0.3);z-index:10;';
+        'color:' + style.fg + ' !important;' +
+        'border-radius:12px;font-size:12px;font-weight:500;' +
+        'cursor:pointer;' +
+        'border:1px solid ' + style.fg + '44;' +
+        'width:fit-content;' +
+        'transition:filter 0.15s;';
 
-      badge.addEventListener('mouseenter', function(e) { showTooltip(e, ann.content); });
-      badge.addEventListener('mouseleave', hideTooltip);
-      badge.addEventListener('click', function(e) {
+      // Use textContent with actual emoji (avoid template-literal escape issues)
+      label.appendChild(document.createTextNode('📝'));
+      label.appendChild(document.createTextNode(' 已批注'));
+
+      label.addEventListener('mouseenter', function(e) { showTooltip(e, ann.content); });
+      label.addEventListener('mouseleave', hideTooltip);
+      label.addEventListener('click', function(e) {
         e.stopPropagation();
         e.preventDefault();
         window.parent.postMessage({ type: 'annotation-click', id: ann.id }, '*');
       });
 
-      parent.appendChild(badge);
+      // Insert label right after the anchor element
+      anchor.parentNode.insertBefore(label, anchor.nextSibling);
     });
   }
 
@@ -256,7 +286,10 @@ export const CONTENT_SCRIPT = `
     s.textContent = [
       '.aifriends-anno:hover{filter:brightness(0.82);}',
       '.aifriends-anno.active{outline:3px solid #6366f1 !important;outline-offset:2px;animation:aifriends-pulse 0.6s ease-in-out 3;}',
-      '@keyframes aifriends-pulse{0%,100%{outline-color:#6366f1}50%{outline-color:#a5b4fc}}'
+      '.aifriends-img-label:hover{filter:brightness(0.88);}',
+      '.aifriends-img-label.active{outline:3px solid #6366f1 !important;outline-offset:2px;animation:aifriends-pulse 0.6s ease-in-out 3;}',
+      '@keyframes aifriends-pulse{0%,100%{outline-color:#6366f1}50%{outline-color:#a5b4fc}}',
+      '@keyframes aifriends-fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}'
     ].join('');
     document.head.appendChild(s);
   }
@@ -286,17 +319,14 @@ export const CONTENT_SCRIPT = `
     }, 10);
   }
 
-  // --- Image click detection ---
+  // --- Image click detection (shows inline action bar, not immediate) ---
   function onImageClick(e) {
     var img = e.target.closest('img');
-    if (!img) return;
-    if (e.target.closest('.aifriends-img-badge')) return;
+    if (!img) { hideImageActionBar(); return; }
+    // Don't intercept clicks on our own UI
+    if (e.target.closest('.aifriends-img-label') || e.target.closest('.aifriends-img-action')) return;
     e.stopPropagation();
-    window.parent.postMessage({
-      type: 'image-clicked',
-      src: img.src,
-      alt: img.alt || '',
-    }, '*');
+    showImageActionBar(img);
   }
 
   // --- Listen for commands from parent ---
@@ -307,7 +337,10 @@ export const CONTENT_SCRIPT = `
       renderAnnotations(e.data.annotations);
     }
     if (e.data.type === 'focus-annotation') {
-      var el = document.querySelector('.aifriends-anno[data-id="' + e.data.id + '"], .aifriends-img-badge[data-id="' + e.data.id + '"]');
+      var el = document.querySelector(
+        '.aifriends-anno[data-id="' + e.data.id + '"], ' +
+        '.aifriends-img-label[data-id="' + e.data.id + '"]'
+      );
       if (el) {
         el.classList.add('active');
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });

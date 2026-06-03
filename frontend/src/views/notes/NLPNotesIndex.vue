@@ -177,6 +177,12 @@ function startEditAnnotation(ann) {
   annoSaveStatus.value = ''
   panelOpen.value = true
   activeTab.value = 'annotations'
+
+  // Scroll to highlight in iframe
+  const iframe = iframeRef.value
+  if (iframe?.contentWindow) {
+    iframe.contentWindow.postMessage({ type: 'focus-annotation', id: ann.id }, '*')
+  }
 }
 
 function cancelEditAnnotation() {
@@ -266,12 +272,10 @@ function onIframeMessage(e) {
         contextAfter: '',
       }
       selectedText.value = null
+      startNewAnnotation()
       break
     case 'annotation-click':
       handleAnnotationClick(e.data.id)
-      break
-    case 'cs-debug':
-      console.log('[CS Debug]', e.data.msg, e.data)
       break
   }
 }
