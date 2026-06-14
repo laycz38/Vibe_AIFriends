@@ -1,0 +1,24 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: aifriends-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: aifriends123
+      MYSQL_DATABASE: aifriends
+      MYSQL_USER: aifriends
+      MYSQL_PASSWORD: aifriends123
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7-alpine
+    container_name: aifriends-redis
+    restart: unless-stopped
+    ports:
+      - "16379:6379"
+
+volumes:
+  mysql_data:

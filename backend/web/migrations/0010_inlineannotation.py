@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
             name='InlineAnnotation',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('page_url', models.TextField()),
+                ('page_url', models.CharField(max_length=500)),
                 ('selected_text', models.TextField()),
                 ('context_before', models.TextField()),
                 ('context_after', models.TextField()),

@@ -94,7 +94,7 @@ class InterviewSession(models.Model):
 
 class StudyNote(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='study_notes')
-    page_url = models.TextField()
+    page_url = models.CharField(max_length=500)
     content = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -111,7 +111,7 @@ class StudyNote(models.Model):
 
 class InlineAnnotation(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='inline_annotations')
-    page_url = models.TextField()
+    page_url = models.CharField(max_length=500)
     selected_text = models.TextField()
     context_before = models.TextField()
     context_after = models.TextField()

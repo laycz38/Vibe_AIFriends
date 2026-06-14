@@ -4,16 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-AIFriends is an interview-experience sharing community (AI 面经社区). Django 6.0 + Vue 3 + TailwindCSS v4 + daisyUI v5, SQLite for storage. The frontend builds into `backend/static/frontend/` and Django serves the SPA in production.
+AIFriends is an interview-experience sharing community (AI 面经社区). Django 6.0 + Vue 3 + TailwindCSS v4 + daisyUI v5. The frontend builds into `backend/static/frontend/` and Django serves the SPA in production.
+
+**Database**: Local dev uses MySQL 8.4 + Redis 7 via Docker (`docker-compose.yml`). Production uses MySQL + Redis installed on the server. SQLite fallback when `DB_ENGINE` env var is not set.
 
 ## Commands
 
 ```bash
+# Docker services (MySQL + Redis) — required for local dev
+docker compose up -d                               # start
+docker compose down                                # stop (frees memory)
+
 # Backend dev server
-cd backend && python manage.py runserver          # → :8000
+cd backend && python manage.py runserver           # → :8000
 
 # Frontend dev server (HMR, port 5173 fixed)
-cd frontend && npm run dev                        # → :5173
+cd frontend && npm run dev                         # → :5173
 
 # Production build (outputs to ../backend/static/frontend/)
 cd frontend && npm run build

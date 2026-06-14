@@ -232,11 +232,17 @@ def step_restart():
             title="清理旧 socket")
 
         # 在服务器上创建启动脚本（避免 bash 特殊字符逃逸问题）
+        db_password = os.environ.get("DB_PASSWORD", "")
         launch_script = (
             f"#!/bin/bash\n"
             f"cd {CONFIG['remote_root']}\n"
             f"export DJANGO_SECRET_KEY='{secret_key}'\n"
             f"export DJANGO_DEBUG=False\n"
+            f"export DB_ENGINE=mysql\n"
+            f"export DB_NAME=aifriends\n"
+            f"export DB_USER=aifriends\n"
+            f"export DB_PASSWORD='{db_password}'\n"
+            f"export REDIS_URL=redis://localhost:6379/0\n"
             f"exec {CONFIG['remote_venv_python']} -m gunicorn --workers 3 "
             f"--graceful-timeout 30 "
             f"--bind unix:{CONFIG['gunicorn_sock']} "

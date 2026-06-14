@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
             name='StudyNote',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('page_url', models.TextField()),
+                ('page_url', models.CharField(max_length=500)),
                 ('content', models.TextField(blank=True, default='')),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
