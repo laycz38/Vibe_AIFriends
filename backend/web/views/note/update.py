@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from web.models import InterviewNote
+from web.utils.cache import invalidate_note
 from web.views.image_utils import process_base64
 from web.views.note.common import serialize_note
 
@@ -39,6 +40,7 @@ def update(request, note_id):
         note.cover_base64 = process_base64(cover)
 
     note.save()
+    invalidate_note(note.id)
 
     return Response({
         'result': 'success',

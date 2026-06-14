@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from web.models import InterviewNote
+from web.utils.cache import invalidate_note, invalidate_user_stats
 
 
 @api_view(['DELETE'])
@@ -23,7 +24,10 @@ def delete(request, note_id):
             'message': '无权删除此笔记',
         }, status=status.HTTP_403_FORBIDDEN)
 
+    user_id = note.user_id
     note.delete()
+    invalidate_note(note_id)
+    invalidate_user_stats(user_id)
 
     return Response({
         'result': 'success',

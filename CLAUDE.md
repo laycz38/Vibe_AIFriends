@@ -8,6 +8,8 @@ AIFriends is an interview-experience sharing community (AI 面经社区). Django
 
 **Database**: Local dev uses MySQL 8.4 + Redis 7 via Docker (`docker-compose.yml`). Production uses MySQL + Redis installed on the server. SQLite fallback when `DB_ENGINE` env var is not set.
 
+**Redis cache**: Hot API endpoints (homepage list, note detail, user stats) are cached in Redis with automatic invalidation on writes. See Caching section below.
+
 ## Commands
 
 ```bash
@@ -27,6 +29,9 @@ cd frontend && npm run build
 # Database migrations
 cd backend && python manage.py makemigrations     # create
 cd backend && python manage.py migrate            # apply
+
+# Redis cache benchmark
+python benchmark.py                                # measures DB query reduction
 ```
 
 There are no tests or linters configured yet.
@@ -54,6 +59,31 @@ Images are stored as **base64 strings in TextField columns**, not as file upload
 - Common serialization helpers live in `common.py` within each views subdirectory
 - API response envelope: `{'result': 'success', ...}` or `{'result': 'error', 'message': '...'}`
 - Auth: `AllowAny` for public endpoints, `IsAuthenticated` for protected ones
+
+**Caching (Redis)** (`web/utils/cache.py`):
+
+| Cache object | Key pattern | TTL | Invalidation trigger |
+|-------------|------------|-----|---------------------|
+| Homepage list | `notes:list:{p}:{size}:{hash}:{auth|public}` | 120s | Any note create/update/delete, comment create, favorite toggle |
+| Note detail | `notes:detail:{note_id}` | 300s | Note update/delete, new comment, like toggle |
+| User stats | `user:stats:{user_id}` | 300s | Note create/delete, like toggle, comment create |
+| Comments | `comments:{note_id}` | 120s | New comment on that note |
+
+**Cache key design**:
+- Public vs authenticated list views use separate keys (per-user liked/favorited state differs)
+- Search queries bypass cache entirely (low hit rate, many unique queries)
+- Detail page caches the full serialized note, then re-checks `liked`/`favorited` for the current user on cache hit (avoids per-user cache explosion)
+- `invalidate_note_list()` deletes all `notes:list:*` keys via wildcard — simple and correct for the current data scale
+
+**Write operations must invalidate cache**:
+- `create.py` / `update.py` / `delete.py` → `invalidate_note_list()` + `invalidate_user_stats()`
+- `toggle_like.py` → `invalidate_note()` + `invalidate_user_stats()`
+- `toggle_favorite.py` → `invalidate_note_list()`
+- `create_comment.py` → `invalidate_note()` + `invalidate_user_stats()`
+
+**`toggle_like.py` also uses `F()` expressions** to atomically increment/decrement `likes` counter, avoiding the N+1 `count()` query pattern.
+
+**`benchmark.py`** uses `django.test.RequestFactory` + `django.db.connection.queries` to measure DB query counts before and after caching. Run with `python benchmark.py`. Expected result: homepage list drops from 9-13 queries to 0 on cache hit.
 
 **TTS (语音合成)** — Aliyun DashScope CosyVoice (通义实验室生成式语音大模型) replaces browser SpeechSynthesis:
 - `utils/aliyun_tts.py` — `synthesize()` returns full audio via SDK; `synthesize_stream()` yields chunks via `ResultCallback`

@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from web.models import InterviewNote, InterviewNoteFavorite
+from web.utils.cache import invalidate_note, invalidate_note_list
 
 
 @api_view(['POST'])
@@ -13,7 +14,9 @@ def toggle_favorite(request, note_id):
     fav, created = InterviewNoteFavorite.objects.get_or_create(user=request.user, note=note)
 
     if created:
+        invalidate_note_list()
         return Response({'result': 'success', 'favorited': True})
     else:
         fav.delete()
+        invalidate_note_list()
         return Response({'result': 'success', 'favorited': False})

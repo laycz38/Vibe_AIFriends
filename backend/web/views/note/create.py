@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from web.models import InterviewNote
+from web.utils.cache import invalidate_note_list, invalidate_user_stats
 from web.views.image_utils import process_base64
 from web.views.note.common import serialize_note
 
@@ -39,6 +40,9 @@ def create(request):
         position=position,
         difficulty=difficulty,
     )
+
+    invalidate_note_list()
+    invalidate_user_stats(request.user.id)
 
     return Response(
         {'result': 'success', 'note': serialize_note(note, request, current_user=request.user)},

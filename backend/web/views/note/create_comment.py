@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from web.models import InterviewNote, InterviewNoteComment
+from web.utils.cache import invalidate_note, invalidate_user_stats
 from web.views.note.common import serialize_comment
 
 
@@ -25,6 +26,9 @@ def create_comment(request, note_id):
         note=note,
         content=content,
     )
+
+    invalidate_note(note_id)
+    invalidate_user_stats(request.user.id)
 
     return Response(
         {
