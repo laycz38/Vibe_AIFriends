@@ -11,6 +11,7 @@ import SpaceIndex from '../views/user/space/SpaceIndex.vue'
 import ProfileIndex from '../views/profile/ProfileIndex.vue'
 import FavoriteIndex from '../views/favorite/FavoriteIndex.vue'
 import NLPNotesIndex from '../views/notes/NLPNotesIndex.vue'
+import TrainingHubIndex from '../views/training/TrainingHubIndex.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),

@@ -232,7 +232,22 @@ def step_restart():
             title="清理旧 socket")
 
         # 在服务器上创建启动脚本（避免 bash 特殊字符逃逸问题）
-        db_password = os.environ.get("DB_PASSWORD", "")
+        # 从本地 .env 文件读取数据库密码
+        db_password = ""
+        try:
+            from dotenv import load_dotenv
+            dotenv_path = Path(CONFIG["project_root"]) / "backend" / ".env"
+            if dotenv_path.exists():
+                dotenv_values = {}
+                with open(dotenv_path) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, _, val = line.partition('=')
+                            dotenv_values[key.strip()] = val.strip()
+                db_password = dotenv_values.get("DB_PASSWORD", "")
+        except Exception:
+            db_password = os.environ.get("DB_PASSWORD", "")
         launch_script = (
             f"#!/bin/bash\n"
             f"cd {CONFIG['remote_root']}\n"
